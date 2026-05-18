@@ -5,9 +5,13 @@ Flutter mobile app for the Rutgers clinical simulation platform.
 - **Dev A (Mahir):** Backend + Infra → see `/backend`
 - **Dev B (Tyler):** Flutter mobile app → this repo
 
+> **Note:** iOS builds require a Mac. If you're on Windows (Tyler), you can develop and test on Android — see the [Windows Setup](#windows-setup-tyler) section below.
+
 ---
 
-## Prerequisites
+## Mac Setup (Mahir)
+
+### Prerequisites
 
 | Tool | Version | Install |
 |------|---------|---------|
@@ -17,7 +21,7 @@ Flutter mobile app for the Rutgers clinical simulation platform.
 | Android Studio | Latest | [developer.android.com/studio](https://developer.android.com/studio) |
 | Firebase CLI | 15+ | `npm install -g firebase-tools` |
 | FlutterFire CLI | 1.3+ | `dart pub global activate flutterfire_cli` |
-| CocoaPods | Latest | `sudo gem install cocoapods` (after Xcode) |
+| CocoaPods | Latest | `brew install cocoapods` (after Xcode) |
 
 After installing Flutter, add the pub global bin to your shell:
 ```bash
@@ -27,18 +31,16 @@ source ~/.zshrc
 
 Run `flutter doctor` and fix any flagged issues before continuing.
 
----
+### First-Time Setup
 
-## First-Time Setup
-
-### 1. Install dependencies
+#### 1. Install dependencies
 
 ```bash
 cd pocket_patient
 flutter pub get
 ```
 
-### 2. Firebase config files
+#### 2. Firebase config files
 
 The following files are committed and should already be present — **do not regenerate them** unless intentionally reconfiguring Firebase:
 
@@ -46,7 +48,7 @@ The following files are committed and should already be present — **do not reg
 - `pocket_patient/android/app/google-services.json`
 - `pocket_patient/ios/Runner/GoogleService-Info.plist`
 
-If they're missing (e.g. fresh clone where secrets were excluded), run:
+If they're missing, run:
 
 ```bash
 firebase login
@@ -54,19 +56,17 @@ cd pocket_patient
 flutterfire configure --project=pocket-patient-v2 --platforms=android,ios
 ```
 
-### 3. iOS simulator setup (one-time, after Xcode installs)
+#### 3. iOS simulator setup (one-time, after Xcode installs)
 
 ```bash
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 sudo xcodebuild -runFirstLaunch
-sudo gem install cocoapods
+brew install cocoapods
 ```
 
----
+### Running the App
 
-## Running the App
-
-### Android emulator
+#### Android emulator
 
 ```bash
 # List available emulators
@@ -80,7 +80,7 @@ cd pocket_patient
 flutter run
 ```
 
-### iOS simulator
+#### iOS simulator
 
 ```bash
 # Open Simulator
@@ -91,9 +91,93 @@ cd pocket_patient
 flutter run -d "iPhone 16"
 ```
 
-### List all connected devices / simulators
+#### List all connected devices / simulators
 
 ```bash
+flutter devices
+```
+
+---
+
+## Windows Setup (Tyler)
+
+iOS builds are not possible on Windows — Android is your target platform for local development.
+
+### Prerequisites
+
+1. **Flutter SDK** — Download the latest stable zip from [docs.flutter.dev/get-started/install/windows](https://docs.flutter.dev/get-started/install/windows/android). Extract to `C:\flutter` and add `C:\flutter\bin` to your system PATH.
+
+2. **Android Studio** — Download from [developer.android.com/studio](https://developer.android.com/studio). During install, make sure to include:
+   - Android SDK
+   - Android SDK Command-line Tools
+   - Android Virtual Device (AVD)
+
+3. **Git for Windows** — [git-scm.com](https://git-scm.com/download/win). Use Git Bash or PowerShell for all commands below.
+
+4. **Node.js** — [nodejs.org](https://nodejs.org) (LTS). Needed for Firebase CLI.
+
+After installing, open a new terminal and verify:
+
+```powershell
+flutter doctor
+```
+
+Fix any flagged issues. Accept Android licenses when prompted:
+
+```powershell
+flutter doctor --android-licenses
+```
+
+### First-Time Setup
+
+#### 1. Clone and install dependencies
+
+```powershell
+git clone https://github.com/PocketPatient/frontend.git
+cd frontend\pocket_patient
+flutter pub get
+```
+
+#### 2. Firebase config files
+
+These are already committed — nothing to do. If they're ever missing:
+
+```powershell
+npm install -g firebase-tools
+dart pub global activate flutterfire_cli
+firebase login
+flutterfire configure --project=pocket-patient-v2 --platforms=android
+```
+
+Add the pub global bin to PATH (add this to your PowerShell profile permanently):
+
+```powershell
+$env:PATH += ";$env:USERPROFILE\.pub-cache\bin"
+```
+
+### Running the App on Windows
+
+#### Create an Android emulator (if you don't have one)
+
+Open Android Studio → **Device Manager** → **Create Device** → pick a phone (e.g. Pixel 8) → select a system image (API 35+) → Finish.
+
+#### Launch the emulator and run
+
+```powershell
+# List available emulators
+flutter emulators
+
+# Launch one (use the ID from the list above)
+flutter emulators --launch <emulator_id>
+
+# Run the app once the emulator boots
+cd pocket_patient
+flutter run
+```
+
+#### List connected devices
+
+```powershell
 flutter devices
 ```
 
