@@ -1,62 +1,323 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 
-class LoginScreen extends ConsumerWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  bool _isRegistering = false;
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual(authNotifierProvider, (_, next) {
+      if (next.hasError && mounted) {
+        final msg = _friendlyError(next.error!);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
+      }
+    });
+  }
+
+  String _friendlyError(Object error) {
+    if (error is FirebaseAuthException) {
+      switch (error.code) {
+        case 'user-not-found':
+          return 'No account found with that email.';
+        case 'wrong-password':
+        case 'invalid-credential':
+          return 'Incorrect email or password.';
+        case 'email-already-in-use':
+          return 'An account already exists with this email.';
+        case 'weak-password':
+          return 'Password must be at least 6 characters.';
+        case 'invalid-email':
+          return 'Invalid email address.';
+        case 'too-many-requests':
+          return 'Too many attempts. Please try again later.';
+        default:
+          return error.message ?? 'Authentication failed.';
+      }
+    }
+    final msg = error.toString();
+    if (msg.contains('Sign-in cancelled')) return 'Sign-in cancelled.';
+    if (msg.contains('403') || msg.contains('rutgers')) {
+      return 'Only @rutgers.edu or @scarletmail.rutgers.edu emails are allowed.';
+    }
+    if (msg.contains('SocketException') || msg.contains('Connection')) {
+      return 'Cannot reach server. Is the backend running?';
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
+  Future<void> _submitEmailForm() async {
+    if (!_formKey.currentState!.validate()) return;
+    final notifier = ref.read(authNotifierProvider.notifier);
+    if (_isRegistering) {
+      await notifier.register(_emailCtrl.text.trim(), _passwordCtrl.text);
+    } else {
+      await notifier.signInWithEmail(_emailCtrl.text.trim(), _passwordCtrl.text);
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _emailCtrl.text.trim();
+    final inputCtrl = TextEditingController(text: email);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset password'),
+        content: TextField(
+          controller: inputCtrl,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(labelText: 'Email'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Send reset link')),
+        ],
+      ),
+    );
+    if (confirmed == true && inputCtrl.text.trim().isNotEmpty && mounted) {
+      try {
+        await ref
+            .read(authNotifierProvider.notifier)
+            .sendPasswordReset(inputCtrl.text.trim());
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Password reset email sent.')),
+          );
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not send reset email.')),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLoading = ref.watch(authNotifierProvider).isLoading;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(16),
+              // Logo & title
+              Center(
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(Icons.local_hospital,
+                      size: 52, color: colorScheme.primary),
                 ),
-                child: const Icon(Icons.local_hospital, size: 60, color: Colors.grey),
               ),
-              const SizedBox(height: 24),
-              const Text(
+              const SizedBox(height: 20),
+              Text(
                 'Pocket Patient v2',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 'Rutgers University Clinical Simulation',
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                 textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: Colors.grey[600]),
               ),
-              const SizedBox(height: 48),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    await ref.read(authServiceProvider).writeToken('dummy_token');
-                    if (context.mounted) context.go('/home');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFCC0033),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text(
-                    'Sign in with Google',
-                    style: TextStyle(fontSize: 16),
-                  ),
+              const SizedBox(height: 40),
+
+              // Google sign-in
+              OutlinedButton.icon(
+                onPressed: isLoading
+                    ? null
+                    : () => ref
+                        .read(authNotifierProvider.notifier)
+                        .signInWithGoogle(),
+                icon: const _GoogleLogo(),
+                label: const Text('Continue with Google'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: Colors.grey),
+                  foregroundColor: Colors.black87,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Divider
+              Row(children: [
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('or',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                ),
+                const Expanded(child: Divider()),
+              ]),
+              const SizedBox(height: 24),
+
+              // Email / password form
+              Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Rutgers email',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Enter your email';
+                        if (!v.contains('@')) return 'Enter a valid email';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordCtrl,
+                      obscureText: _obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _submitEmailForm(),
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock_outlined),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined),
+                          onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword),
+                        ),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Enter your password';
+                        if (_isRegistering && v.length < 6) {
+                          return 'Password must be at least 6 characters';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Forgot password (sign-in mode only)
+                    if (!_isRegistering)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: isLoading ? null : _forgotPassword,
+                          child: const Text('Forgot password?'),
+                        ),
+                      ),
+
+                    const SizedBox(height: 8),
+
+                    // Submit button
+                    FilledButton(
+                      onPressed: isLoading ? null : _submitEmailForm,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : Text(
+                              _isRegistering ? 'Create account' : 'Sign in',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Toggle register / sign-in
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _isRegistering
+                              ? 'Already have an account?'
+                              : "Don't have an account?",
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                        TextButton(
+                          onPressed: isLoading
+                              ? null
+                              : () => setState(
+                                  () => _isRegistering = !_isRegistering),
+                          child: Text(_isRegistering ? 'Sign in' : 'Register'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// Simple coloured "G" that approximates Google branding without an SVG package.
+class _GoogleLogo extends StatelessWidget {
+  const _GoogleLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text(
+      'G',
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFF4285F4),
       ),
     );
   }

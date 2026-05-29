@@ -1,201 +1,216 @@
 # PocketPatient — Frontend
 
-Flutter mobile app for the Rutgers clinical simulation platform.
+Flutter mobile app for the Rutgers PocketPatient v2 clinical simulation platform. Medical students converse with AI-powered virtual psychiatric patients and practice diagnosis.
 
-- **Dev A (Mahir):** Backend + Infra → see `/backend`
-- **Dev B (Tyler):** Flutter mobile app → this repo
+**Stack:** Flutter 3.x · Dart · Riverpod · GoRouter · Firebase Auth · Dio
 
-> **Note:** iOS builds require a Mac. If you're on Windows (Tyler), you can develop and test on Android — see the [Windows Setup](#windows-setup-tyler) section below.
+**Team:**
+- Dev A (Mahir Shah) — Backend + Infra → see `/backend`
+- Dev B (Tyler Abbassi) — Flutter mobile app → this repo
+
+> **iOS note:** iOS builds require a Mac with Xcode. Windows developers (Tyler) target Android only.
 
 ---
 
-## Mac Setup (Mahir)
+## Prerequisites
 
-### Prerequisites
+### Windows (Android development)
 
-| Tool | Version | Install |
-|------|---------|---------|
-| Flutter SDK | 3.41.9+ | `brew install --cask flutter` |
-| Dart | 3.11.5+ | Included with Flutter |
-| Xcode | 16+ | App Store (iOS builds only) |
-| Android Studio | Latest | [developer.android.com/studio](https://developer.android.com/studio) |
-| Firebase CLI | 15+ | `npm install -g firebase-tools` |
-| FlutterFire CLI | 1.3+ | `dart pub global activate flutterfire_cli` |
-| CocoaPods | Latest | `brew install cocoapods` (after Xcode) |
+| Tool | Install |
+|------|---------|
+| Flutter SDK 3.41.9+ | [docs.flutter.dev/get-started/install/windows](https://docs.flutter.dev/get-started/install/windows/android) — extract to `C:\flutter`, add `C:\flutter\bin` to PATH |
+| Android Studio | [developer.android.com/studio](https://developer.android.com/studio) — include Android SDK, Command-line Tools, AVD during install |
+| Java (JDK 17+) | Bundled with Android Studio, or install separately |
+| Git | [git-scm.com](https://git-scm.com/download/win) |
 
-After installing Flutter, add the pub global bin to your shell:
-```bash
-echo 'export PATH="$PATH:$HOME/.pub-cache/bin"' >> ~/.zshrc
-source ~/.zshrc
+After installing, open a new PowerShell and verify:
+
+```powershell
+flutter doctor
+flutter doctor --android-licenses   # accept all licenses
 ```
 
-Run `flutter doctor` and fix any flagged issues before continuing.
+Fix any flagged issues before continuing.
 
-### First-Time Setup
+### Mac (iOS + Android development)
 
-#### 1. Install dependencies
+| Tool | Install |
+|------|---------|
+| Flutter SDK 3.41.9+ | `brew install --cask flutter` |
+| Xcode 16+ | Mac App Store |
+| Android Studio | [developer.android.com/studio](https://developer.android.com/studio) |
+| CocoaPods | `brew install cocoapods` (after Xcode) |
 
 ```bash
-cd pocket_patient
+sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -runFirstLaunch
+flutter doctor
+```
+
+---
+
+## First-Time Setup
+
+### 1. Clone and install dependencies
+
+```powershell
+git clone <frontend-repo-url>
+cd frontend\pocket_patient
 flutter pub get
 ```
 
-#### 2. Firebase config files
+### 2. Firebase config files
 
-The following files are committed and should already be present — **do not regenerate them** unless intentionally reconfiguring Firebase:
+These files are committed and should already be present — **do not regenerate them** unless intentionally reconfiguring Firebase:
 
 - `pocket_patient/lib/firebase_options.dart`
 - `pocket_patient/android/app/google-services.json`
 - `pocket_patient/ios/Runner/GoogleService-Info.plist`
 
-If they're missing, run:
-
-```bash
-firebase login
-cd pocket_patient
-flutterfire configure --project=pocket-patient-v2 --platforms=android,ios
-```
-
-#### 3. iOS simulator setup (one-time, after Xcode installs)
-
-```bash
-sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
-sudo xcodebuild -runFirstLaunch
-brew install cocoapods
-```
-
-### Running the App
-
-#### Android emulator
-
-```bash
-# List available emulators
-flutter emulators
-
-# Launch one
-flutter emulators --launch Medium_Phone_API_36.1
-
-# Run the app (once emulator is booted)
-cd pocket_patient
-flutter run
-```
-
-#### iOS simulator
-
-```bash
-# Open Simulator
-open -a Simulator
-
-# Run on a specific device
-cd pocket_patient
-flutter run -d "iPhone 16"
-```
-
-#### List all connected devices / simulators
-
-```bash
-flutter devices
-```
-
----
-
-## Windows Setup (Tyler)
-
-iOS builds are not possible on Windows — Android is your target platform for local development.
-
-### Prerequisites
-
-1. **Flutter SDK** — Download the latest stable zip from [docs.flutter.dev/get-started/install/windows](https://docs.flutter.dev/get-started/install/windows/android). Extract to `C:\flutter` and add `C:\flutter\bin` to your system PATH.
-
-2. **Android Studio** — Download from [developer.android.com/studio](https://developer.android.com/studio). During install, make sure to include:
-   - Android SDK
-   - Android SDK Command-line Tools
-   - Android Virtual Device (AVD)
-
-3. **Git for Windows** — [git-scm.com](https://git-scm.com/download/win). Use Git Bash or PowerShell for all commands below.
-
-4. **Node.js** — [nodejs.org](https://nodejs.org) (LTS). Needed for Firebase CLI.
-
-After installing, open a new terminal and verify:
-
-```powershell
-flutter doctor
-```
-
-Fix any flagged issues. Accept Android licenses when prompted:
-
-```powershell
-flutter doctor --android-licenses
-```
-
-### First-Time Setup
-
-#### 1. Clone and install dependencies
-
-```powershell
-git clone https://github.com/PocketPatient/frontend.git
-cd frontend\pocket_patient
-flutter pub get
-```
-
-#### 2. Firebase config files
-
-These are already committed — nothing to do. If they're ever missing:
+If they're ever missing, regenerate with:
 
 ```powershell
 npm install -g firebase-tools
 dart pub global activate flutterfire_cli
 firebase login
-flutterfire configure --project=pocket-patient-v2 --platforms=android
+cd pocket_patient
+flutterfire configure --project=pocket-patient-v2 --platforms=android,ios
 ```
 
-Add the pub global bin to PATH (add this to your PowerShell profile permanently):
+### 3. Register your debug SHA-1 in Firebase (Android — one-time per machine)
+
+Google Sign-In on Android requires your debug keystore's SHA-1 fingerprint registered in Firebase. This is per-machine — every developer must do this once.
+
+**Get your SHA-1:**
 
 ```powershell
-$env:PATH += ";$env:USERPROFILE\.pub-cache\bin"
+# Windows
+keytool -list -v -keystore "$env:USERPROFILE\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android
 ```
 
-### Running the App on Windows
+```bash
+# Mac/Linux
+keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
+```
 
-#### Create an Android emulator (if you don't have one)
+Copy the `SHA1:` line, then:
 
-Open Android Studio → **Device Manager** → **Create Device** → pick a phone (e.g. Pixel 8) → select a system image (API 35+) → Finish.
+1. Go to [console.firebase.google.com](https://console.firebase.google.com) → `pocket-patient-v2`
+2. **Project Settings** (gear icon) → **Your apps** → Android app (`edu.rutgers.pocket_patient`)
+3. **SHA certificate fingerprints** → **Add fingerprint** → paste SHA1 → Save
 
-#### Launch the emulator and run
+### 4. Enable Firebase Auth sign-in methods (one-time, project-wide)
+
+1. Firebase console → **Authentication** → **Sign-in method** tab
+2. Enable **Google**
+3. Enable **Email/Password**
+
+### 5. Add a Google account to the Android emulator
+
+Google Sign-In requires a Google account signed into the emulator itself.
+
+1. Launch the emulator (see below)
+2. Open **Settings** → **Passwords & accounts** → **Add account** → **Google**
+3. Sign in with a `@rutgers.edu` or `@scarletmail.rutgers.edu` Google account
+
+---
+
+## Backend Setup
+
+The Flutter app connects to the FastAPI backend. You must have the backend running locally before testing auth or any API features.
+
+### 1. Start Docker (Postgres + Redis)
+
+```powershell
+cd ..\backend
+docker compose up -d
+```
+
+### 2. Start the FastAPI server
+
+```powershell
+cd ..\backend
+.venv\Scripts\activate       # Windows
+# source .venv/bin/activate  # Mac/Linux
+uvicorn app.main:app --reload --port 8000
+```
+
+Health check: open `http://localhost:8000/health` in a browser — should return `{"status":"ok"}`.
+
+### Backend URL in the Flutter app
+
+The app's base URL is set in [`lib/config/constants.dart`](pocket_patient/lib/config/constants.dart):
+
+```dart
+const String kApiBaseUrl = 'http://10.0.2.2:8000/api/v1';
+```
+
+| Scenario | URL to use |
+|----------|-----------|
+| Android emulator | `http://10.0.2.2:8000/api/v1` (default) |
+| Physical Android device | `http://<your-machine-LAN-IP>:8000/api/v1` |
+| iOS simulator (Mac) | `http://localhost:8000/api/v1` |
+
+Change `kApiBaseUrl` to match your setup, then hot-restart the app.
+
+---
+
+## Running the App
+
+### Create an Android emulator (if you don't have one)
+
+1. Open Android Studio → **Device Manager** → **Create Device**
+2. Pick a phone (e.g. Pixel 8)
+3. Select a system image — **must be a Google Play image** (API 35+), not "Google APIs only"
+4. Finish
+
+> The Google Play image is required for Google Sign-In to work.
+
+### Launch the emulator and run
 
 ```powershell
 # List available emulators
 flutter emulators
 
-# Launch one (use the ID from the list above)
-flutter emulators --launch <emulator_id>
+# Launch one
+flutter emulators --launch Pixel_8
 
-# Run the app once the emulator boots
+# Wait for the emulator home screen, then run the app
 cd pocket_patient
-flutter run
+flutter run -d emulator-5554
 ```
 
-#### List connected devices
+### Hot reload vs hot restart
 
-```powershell
-flutter devices
+While `flutter run` is active in the terminal:
+
+| Key | Action | When to use |
+|-----|--------|-------------|
+| `r` | Hot reload | UI/widget changes |
+| `R` | Hot restart | Provider/state/routing changes |
+| `q` | Quit | Stop the app |
+
+### iOS (Mac only)
+
+```bash
+open -a Simulator
+cd pocket_patient
+flutter run -d "iPhone 16"
 ```
 
 ---
 
-## Running Tests
+## Auth Flow (Week 2)
 
-```bash
-cd pocket_patient
-flutter test
-```
-
-Expected: `+8: All tests passed!`
-
-Tests are in `pocket_patient/test/` and cover:
-- `services/auth_service_test.dart` — 4 unit tests (hasToken, writeToken, clearToken)
-- `screens/login_screen_test.dart` — 2 widget tests
-- `screens/home_screen_test.dart` — 2 widget tests
+1. User signs in via **Google OAuth** or **email/password** through Firebase
+2. App gets a Firebase ID token
+3. App sends ID token to backend `POST /api/v1/auth/login`
+4. Backend validates token and checks email domain (`@rutgers.edu` / `@scarletmail.rutgers.edu`)
+5. Backend returns `access_token` (15 min) + `refresh_token` (7 days)
+6. Both tokens stored in device secure storage (`flutter_secure_storage`)
+7. If `user.role == null` → **Role Selection** screen
+8. After role set → **Home** screen
+9. Access token auto-refreshes via Dio interceptor on 401
 
 ---
 
@@ -204,22 +219,24 @@ Tests are in `pocket_patient/test/` and cover:
 ```
 pocket_patient/
 ├── lib/
-│   ├── main.dart                  # Entry point — Firebase init + ProviderScope
-│   ├── app.dart                   # MaterialApp.router + GoRouter (3 routes, auth gate)
-│   ├── firebase_options.dart      # Auto-generated by FlutterFire CLI
+│   ├── main.dart                      # Entry point — Firebase init, FCM permission, ProviderScope
+│   ├── app.dart                       # MaterialApp.router, uses goRouterProvider
+│   ├── firebase_options.dart          # Auto-generated by FlutterFire CLI — do not edit
 │   ├── config/
-│   │   └── constants.dart         # kApiBaseUrl, kAppName, kTokenKey
-│   ├── models/                    # Data classes (Week 2+)
+│   │   └── constants.dart             # kApiBaseUrl, kAppName, kTokenKey, kRefreshTokenKey
+│   ├── models/
+│   │   ├── user.dart                  # AppUser (id, email, role, displayName, isVerified)
+│   │   └── auth_response.dart         # AuthResponse (accessToken, refreshToken)
 │   ├── providers/
-│   │   └── auth_provider.dart     # authServiceProvider (Riverpod)
+│   │   └── auth_provider.dart         # AuthNotifier, RouterNotifier, goRouterProvider
 │   ├── screens/
-│   │   ├── login_screen.dart      # Placeholder login — writes dummy token
-│   │   ├── home_screen.dart       # Welcome screen + logout
-│   │   └── placeholder_screen.dart
+│   │   ├── login_screen.dart          # Google OAuth + email/password + register + forgot password
+│   │   ├── role_selection_screen.dart # Student / Professor picker (shown after first login)
+│   │   └── home_screen.dart           # Authenticated home — shows user name + role
 │   ├── services/
-│   │   ├── auth_service.dart      # Token read/write/delete via flutter_secure_storage
-│   │   └── api_service.dart       # Dio HTTP client stub (Week 2+)
-│   └── widgets/                   # Reusable components (Week 2+)
+│   │   ├── auth_service.dart          # Secure token storage (access + refresh)
+│   │   └── api_service.dart           # Dio HTTP client — login, getMe, setRole + refresh interceptor
+│   └── widgets/                       # Reusable widgets (Week 3+)
 └── test/
     ├── services/
     │   └── auth_service_test.dart
@@ -230,36 +247,54 @@ pocket_patient/
 
 ---
 
-## Key Decisions
+## Running Tests
 
-- **State management:** Riverpod 2.x (`flutter_riverpod`)
-- **Routing:** GoRouter 14.x with an async redirect guard that checks `flutter_secure_storage` for an auth token
-- **Auth (Week 1):** Placeholder — tapping "Sign in with Google" writes a dummy token and navigates to `/home`. Real Google OAuth via Firebase Auth comes in Week 2
-- **API base URL:** `http://localhost:8000/api/v1` (local dev) — defined in `lib/config/constants.dart`
-- **Theme:** Material 3, primary color Rutgers scarlet `#CC0033`
-- **Firebase:** Initialized at startup; push notification *handling* deferred to Week 2
-
----
-
-## Backend (Dev A)
-
-The backend is a separate repo at `/backend`. For local dev it needs Docker running:
-
-```bash
-cd ../backend
-docker compose up -d          # starts Postgres 16 + Redis 7
-uvicorn app.main:app --reload # starts FastAPI on localhost:8000
+```powershell
+cd pocket_patient
+flutter test
 ```
-
-Health check: `curl localhost:8000/health` → `{"status":"ok"}`
-
-API base URL: `http://localhost:8000/api/v1`
 
 ---
 
 ## Firebase Project
 
-- **Project ID:** `pocket-patient-v2`
-- **Android app:** `edu.rutgers.pocket_patient`
-- **iOS app:** `edu.rutgers.pocketPatient`
-- **Console:** [console.firebase.google.com](https://console.firebase.google.com) → select `pocket-patient-v2`
+| Field | Value |
+|-------|-------|
+| Project ID | `pocket-patient-v2` |
+| Android package | `edu.rutgers.pocket_patient` |
+| iOS bundle ID | `edu.rutgers.pocketPatient` |
+| Console | [console.firebase.google.com](https://console.firebase.google.com) → `pocket-patient-v2` |
+| Auth domains | `@rutgers.edu`, `@scarletmail.rutgers.edu` |
+
+---
+
+## Key Decisions
+
+| Decision | Choice | Reason |
+|----------|--------|--------|
+| State management | Riverpod 2.x | Testable, composable, no BuildContext required |
+| Routing | GoRouter 14.x | Async redirect guards, declarative routes |
+| Auth | Firebase Auth (Google + email/password) | No CAS/SAML needed, handles Rutgers SSO via Google |
+| HTTP client | Dio 5.x | Interceptor support for auto token refresh |
+| Token storage | flutter_secure_storage | Platform-native encryption (Keystore on Android) |
+| Charts (Phase 3) | fl_chart | Lightweight, Flutter-native |
+| Theme | Material 3, seed `#CC0033` | Rutgers scarlet branding |
+
+---
+
+## Troubleshooting
+
+**Google Sign-In opens picker but immediately closes**
+→ Your debug SHA-1 is not registered in Firebase. See [step 3](#3-register-your-debug-sha-1-in-firebase-android--one-time-per-machine) above.
+
+**Login spinner spins forever, backend returns 401**
+→ Backend Firebase credentials are missing or wrong. Make sure `serviceAccountKey.json` is in the backend root and `firebase_credentials_path=serviceAccountKey.json` is in backend `.env`.
+
+**`flutter run` builds but never installs**
+→ Emulator may be offline or crashed. Run `flutter devices` to check. If the emulator is listed but offline, wipe data in Android Studio AVD Manager and relaunch.
+
+**`Connection refused` / network error after login**
+→ Backend isn't running, or the URL in `constants.dart` is wrong for your setup. Verify `http://localhost:8000/health` returns OK in a browser, then check the URL table above.
+
+**Email/password sign-in returns "operation not allowed"**
+→ Email/Password is not enabled in Firebase console. Go to Authentication → Sign-in method → enable it.
