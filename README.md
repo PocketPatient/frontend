@@ -247,6 +247,19 @@ pocket_patient/
 
 ---
 
+## Local Test Accounts
+
+Two pre-seeded accounts exist for local development. Use **email/password sign-in** on the login screen — no email verification step.
+
+| Role | Email | Password |
+|------|-------|----------|
+| Student | `student@test.pocketpatient.dev` | `TestPass123!` |
+| Professor | `professor@test.pocketpatient.dev` | `TestPass123!` |
+
+These accounts are created by running `python scripts/seed_test_users.py` in the backend. Roles are pre-set so the app skips role selection and goes straight to the home screen.
+
+---
+
 ## Running Tests
 
 ```powershell
