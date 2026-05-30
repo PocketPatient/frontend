@@ -151,6 +151,9 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
   }
 
   Future<AppUser> _exchangeFirebaseToken(User firebaseUser) async {
+    // Clear any previously stored tokens first — prevents stale sessions
+    // from a different account being used after switching logins.
+    await ref.read(authServiceProvider).clearAll();
     // Force-refresh the token so email_verified is up to date.
     final idToken = await firebaseUser.getIdToken(true);
     final authResp = await ref.read(apiServiceProvider).login(idToken!);
