@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../config/constants.dart';
 import '../models/auth_response.dart';
+import '../models/course.dart';
 import '../models/user.dart';
 import 'auth_service.dart';
 
@@ -33,6 +34,38 @@ class ApiService {
   Future<AppUser> setRole(String role) async {
     final resp = await _dio.put('/users/me/role', data: {'role': role});
     return AppUser.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  // -------------------------------------------------------------------------
+  // Courses
+  // -------------------------------------------------------------------------
+
+  Future<List<Course>> getCourses() async {
+    final resp = await _dio.get('/courses');
+    final list = resp.data as List<dynamic>;
+    return list
+        .map((e) => Course.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Course> createCourse(String title, String semester) async {
+    final resp = await _dio.post('/courses', data: {
+      'title': title,
+      'semester': semester.isEmpty ? null : semester,
+    });
+    return Course.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  // -------------------------------------------------------------------------
+  // Enrollments
+  // -------------------------------------------------------------------------
+
+  Future<Course> joinCourse(String classCode) async {
+    final resp = await _dio.post(
+      '/enrollments/join',
+      data: {'class_code': classCode.toUpperCase()},
+    );
+    return Course.fromJson(resp.data as Map<String, dynamic>);
   }
 }
 

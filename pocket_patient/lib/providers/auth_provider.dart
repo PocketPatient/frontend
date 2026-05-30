@@ -8,7 +8,9 @@ import '../models/user.dart';
 import '../screens/email_verification_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/professor/create_course_screen.dart';
 import '../screens/role_selection_screen.dart';
+import '../screens/student/enroll_screen.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 
@@ -199,6 +201,8 @@ class RouterNotifier extends ChangeNotifier {
         loc == '/verify-email') {
       return '/home';
     }
+    // Authenticated routes — allow through
+    if (loc == '/enroll' || loc == '/create-course') return null;
     return null;
   }
 }
@@ -218,6 +222,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           path: '/role-selection',
           builder: (_, __) => const RoleSelectionScreen()),
       GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
+      GoRoute(path: '/enroll', builder: (_, __) => const EnrollScreen()),
+      GoRoute(
+          path: '/create-course',
+          builder: (_, __) => const CreateCourseScreen()),
     ],
   );
 });
