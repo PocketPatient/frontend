@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../config/constants.dart';
 import '../models/auth_response.dart';
 import '../models/course.dart';
+import '../models/disease_document_preview.dart';
 import '../models/user.dart';
 import 'auth_service.dart';
 
@@ -54,6 +55,33 @@ class ApiService {
       'semester': semester.isEmpty ? null : semester,
     });
     return Course.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  // -------------------------------------------------------------------------
+  // Disease documents
+  // -------------------------------------------------------------------------
+
+  Future<DiseaseDocumentPreview> uploadDiseaseDocument(
+    String courseId,
+    List<int> fileBytes,
+    String fileName,
+  ) async {
+    final formData = FormData.fromMap({
+      'file': MultipartFile.fromBytes(fileBytes, filename: fileName),
+    });
+    final resp = await _dio.post(
+      '/courses/$courseId/disease-document',
+      data: formData,
+    );
+    return DiseaseDocumentPreview.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<DiseaseDocumentConfirmResult> confirmDiseaseDocument(
+      String courseId) async {
+    final resp =
+        await _dio.post('/courses/$courseId/disease-document/confirm');
+    return DiseaseDocumentConfirmResult.fromJson(
+        resp.data as Map<String, dynamic>);
   }
 
   // -------------------------------------------------------------------------

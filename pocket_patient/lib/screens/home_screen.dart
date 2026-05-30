@@ -158,7 +158,12 @@ class _CourseCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: colorScheme.outlineVariant),
       ),
-      child: Padding(
+      clipBehavior: Clip.hardEdge,
+      child: InkWell(
+        onTap: isProfessor
+            ? () => context.push('/course/${course.id}', extra: course)
+            : null,
+        child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,6 +232,7 @@ class _CourseCard extends StatelessWidget {
               ],
             ),
           ],
+        ),
         ),
       ),
     );

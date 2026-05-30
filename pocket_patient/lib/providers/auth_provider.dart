@@ -8,7 +8,9 @@ import '../models/user.dart';
 import '../screens/email_verification_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/professor/course_management_screen.dart';
 import '../screens/professor/create_course_screen.dart';
+import '../screens/professor/disease_upload_screen.dart';
 import '../screens/role_selection_screen.dart';
 import '../screens/student/enroll_screen.dart';
 import '../services/api_service.dart';
@@ -206,6 +208,7 @@ class RouterNotifier extends ChangeNotifier {
     }
     // Authenticated routes — allow through
     if (loc == '/enroll' || loc == '/create-course') return null;
+    if (loc.startsWith('/course/')) return null;
     return null;
   }
 }
@@ -229,6 +232,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/create-course',
           builder: (_, __) => const CreateCourseScreen()),
+      GoRoute(
+        path: '/course/:courseId',
+        builder: (_, state) {
+          final course = state.extra as dynamic;
+          return CourseManagementScreen(course: course);
+        },
+        routes: [
+          GoRoute(
+            path: 'upload',
+            builder: (_, state) {
+              final course = state.extra as dynamic;
+              return DiseaseUploadScreen(course: course);
+            },
+          ),
+        ],
+      ),
     ],
   );
 });
