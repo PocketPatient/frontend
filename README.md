@@ -200,17 +200,31 @@ flutter run -d "iPhone 16"
 
 ---
 
-## Auth Flow (Week 2)
+## Auth Flow
 
 1. User signs in via **Google OAuth** or **email/password** through Firebase
-2. App gets a Firebase ID token
-3. App sends ID token to backend `POST /api/v1/auth/login`
-4. Backend validates token and checks email domain (`@rutgers.edu` / `@scarletmail.rutgers.edu`)
-5. Backend returns `access_token` (15 min) + `refresh_token` (7 days)
-6. Both tokens stored in device secure storage (`flutter_secure_storage`)
-7. If `user.role == null` → **Role Selection** screen
-8. After role set → **Home** screen
-9. Access token auto-refreshes via Dio interceptor on 401
+2. For **email/password registration**: Firebase sends a verification email; app locks to `/verify-email` until the user clicks the link and taps "I've verified my email"
+3. App gets a (force-refreshed) Firebase ID token with `email_verified = true`
+4. App sends ID token to backend `POST /api/v1/auth/login`
+5. Backend validates token and checks email domain (`@rutgers.edu` / `@scarletmail.rutgers.edu`)
+6. Backend returns `access_token` (15 min) + `refresh_token` (7 days)
+7. Both tokens stored in device secure storage (`flutter_secure_storage`)
+8. If `user.role == null` → **Role Selection** screen (student or professor — one-time)
+9. After role set → **Home** screen showing courses
+10. Access token auto-refreshes via Dio interceptor on 401
+
+---
+
+## Screens & Routes
+
+| Route | Screen | Who sees it |
+|-------|--------|-------------|
+| `/login` | LoginScreen | Unauthenticated users |
+| `/verify-email` | EmailVerificationScreen | After email/password registration, before verification |
+| `/role-selection` | RoleSelectionScreen | Authenticated users with no role yet |
+| `/home` | HomeScreen | All authenticated users with a role |
+| `/enroll` | EnrollScreen | Students — enter 6-char class code to join a course |
+| `/create-course` | CreateCourseScreen | Professors — create a new course |
 
 ---
 
@@ -226,17 +240,24 @@ pocket_patient/
 │   │   └── constants.dart             # kApiBaseUrl, kAppName, kTokenKey, kRefreshTokenKey
 │   ├── models/
 │   │   ├── user.dart                  # AppUser (id, email, role, displayName, isVerified)
-│   │   └── auth_response.dart         # AuthResponse (accessToken, refreshToken)
+│   │   ├── auth_response.dart         # AuthResponse (accessToken, refreshToken)
+│   │   └── course.dart                # Course (id, title, semester, classCode, professorId, studentCount, isActive)
 │   ├── providers/
-│   │   └── auth_provider.dart         # AuthNotifier, RouterNotifier, goRouterProvider
+│   │   ├── auth_provider.dart         # AuthNotifier, RouterNotifier, goRouterProvider
+│   │   └── courses_provider.dart      # CoursesNotifier — fetch, createCourse, joinCourse
 │   ├── screens/
 │   │   ├── login_screen.dart          # Google OAuth + email/password + register + forgot password
+│   │   ├── email_verification_screen.dart  # Post-registration email verification gate
 │   │   ├── role_selection_screen.dart # Student / Professor picker (shown after first login)
-│   │   └── home_screen.dart           # Authenticated home — shows user name + role
+│   │   ├── home_screen.dart           # Authenticated home — course list per role
+│   │   ├── student/
+│   │   │   └── enroll_screen.dart     # Join a course with 6-char class code
+│   │   └── professor/
+│   │       └── create_course_screen.dart  # Create course, displays generated class code
 │   ├── services/
 │   │   ├── auth_service.dart          # Secure token storage (access + refresh)
-│   │   └── api_service.dart           # Dio HTTP client — login, getMe, setRole + refresh interceptor
-│   └── widgets/                       # Reusable widgets (Week 3+)
+│   │   └── api_service.dart           # Dio HTTP client — login, getMe, setRole, courses + refresh interceptor
+│   └── widgets/                       # Reusable widgets (Week 4+)
 └── test/
     ├── services/
     │   └── auth_service_test.dart
@@ -311,3 +332,9 @@ flutter test
 
 **Email/password sign-in returns "operation not allowed"**
 → Email/Password is not enabled in Firebase console. Go to Authentication → Sign-in method → enable it.
+
+**After switching accounts, home screen shows wrong courses**
+→ This was a stale token bug (fixed). If you see it again, sign out and back in — the token exchange now clears all stored tokens before writing new ones.
+
+**Test account sign-in fails with "invalid email domain"**
+→ `allow_test_accounts=true` is not set in the backend `.env`, or the backend wasn't restarted after setting it.
