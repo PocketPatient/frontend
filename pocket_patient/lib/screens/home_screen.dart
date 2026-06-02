@@ -5,6 +5,7 @@ import '../models/course.dart';
 import '../providers/auth_provider.dart';
 import '../providers/courses_provider.dart';
 import '../providers/units_provider.dart';
+import '../widgets/offline_banner.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -29,7 +30,36 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: OfflineBannerScaffold(child: Column(children: [
+        // Professor account pending verification banner
+        if (isProfessor && user?.isVerified == false)
+          Material(
+            color: Colors.amber[700],
+            child: const SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                child: Row(
+                  children: [
+                    Icon(Icons.hourglass_top, size: 16, color: Colors.white),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Your professor account is pending verification. '
+                        'Some features may be restricted.',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        Expanded(child: RefreshIndicator(
         onRefresh: () async {
           // Refresh courses, then invalidate each course's unit provider
           // so stale unit counts don't linger after professor changes.
@@ -64,7 +94,8 @@ class HomeScreen extends ConsumerWidget {
             userName: user?.displayName ?? user?.email ?? '',
           ),
         ),
-      ),
+      )),
+      ])),
       floatingActionButton: isProfessor
           ? FloatingActionButton.extended(
               onPressed: () => context.push('/create-course'),
@@ -176,7 +207,9 @@ class _CourseCard extends ConsumerWidget {
       child: InkWell(
         onTap: isProfessor
             ? () => context.push('/course/${course.id}', extra: course)
-            : null,
+            : releasedCount > 0
+                ? () => context.push('/chat/${course.id}', extra: course)
+                : null,
         child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

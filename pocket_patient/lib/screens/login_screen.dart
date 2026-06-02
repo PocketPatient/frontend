@@ -12,15 +12,20 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _displayNameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _confirmPasswordCtrl = TextEditingController();
   bool _isRegistering = false;
   bool _obscurePassword = true;
+  bool _obscureConfirm = true;
 
   @override
   void dispose() {
+    _displayNameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _confirmPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -71,7 +76,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     final notifier = ref.read(authNotifierProvider.notifier);
     if (_isRegistering) {
-      await notifier.register(_emailCtrl.text.trim(), _passwordCtrl.text);
+      await notifier.register(
+        _emailCtrl.text.trim(),
+        _passwordCtrl.text,
+        _displayNameCtrl.text.trim(),
+      );
     } else {
       await notifier.signInWithEmail(_emailCtrl.text.trim(), _passwordCtrl.text);
     }
@@ -201,6 +210,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Display name — registration only
+                    if (_isRegistering) ...[
+                      TextFormField(
+                        controller: _displayNameCtrl,
+                        textInputAction: TextInputAction.next,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: const InputDecoration(
+                          labelText: 'Full name',
+                          hintText: 'e.g. Jane Smith',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Enter your full name';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     TextFormField(
                       controller: _emailCtrl,
                       keyboardType: TextInputType.emailAddress,
@@ -220,8 +250,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     TextFormField(
                       controller: _passwordCtrl,
                       obscureText: _obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _submitEmailForm(),
+                      textInputAction: _isRegistering
+                          ? TextInputAction.next
+                          : TextInputAction.done,
+                      onFieldSubmitted:
+                          _isRegistering ? null : (_) => _submitEmailForm(),
                       decoration: InputDecoration(
                         labelText: 'Password',
                         border: const OutlineInputBorder(),
@@ -236,12 +269,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Enter your password';
-                        if (_isRegistering && v.length < 6) {
-                          return 'Password must be at least 6 characters';
+                        if (_isRegistering && v.length < 8) {
+                          return 'Password must be at least 8 characters';
                         }
                         return null;
                       },
                     ),
+                    // Confirm password — registration only
+                    if (_isRegistering) ...[
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _confirmPasswordCtrl,
+                        obscureText: _obscureConfirm,
+                        textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) => _submitEmailForm(),
+                        decoration: InputDecoration(
+                          labelText: 'Confirm password',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.lock_outlined),
+                          suffixIcon: IconButton(
+                            icon: Icon(_obscureConfirm
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined),
+                            onPressed: () => setState(
+                                () => _obscureConfirm = !_obscureConfirm),
+                          ),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) {
+                            return 'Please confirm your password';
+                          }
+                          if (v != _passwordCtrl.text) {
+                            return 'Passwords do not match';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 8),
 
                     // Forgot password (sign-in mode only)
@@ -289,8 +353,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         TextButton(
                           onPressed: isLoading
                               ? null
-                              : () => setState(
-                                  () => _isRegistering = !_isRegistering),
+                              : () => setState(() {
+                                    _isRegistering = !_isRegistering;
+                                    _displayNameCtrl.clear();
+                                    _confirmPasswordCtrl.clear();
+                                    _formKey.currentState?.reset();
+                                  }),
                           child: Text(_isRegistering ? 'Sign in' : 'Register'),
                         ),
                       ],

@@ -11,7 +11,9 @@ import '../screens/login_screen.dart';
 import '../screens/professor/course_management_screen.dart';
 import '../screens/professor/create_course_screen.dart';
 import '../screens/professor/disease_upload_screen.dart';
+import '../screens/professor/students_screen.dart';
 import '../screens/role_selection_screen.dart';
+import '../screens/student/chat_screen.dart';
 import '../screens/student/enroll_screen.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -85,7 +87,8 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     });
   }
 
-  Future<void> register(String email, String password) async {
+  Future<void> register(
+      String email, String password, String displayName) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final userCred =
@@ -93,6 +96,10 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
         email: email,
         password: password,
       );
+      // Persist display name to Firebase profile.
+      if (displayName.trim().isNotEmpty) {
+        await userCred.user!.updateDisplayName(displayName.trim());
+      }
       // Send verification email — backend requires email_verified = true.
       await userCred.user!.sendEmailVerification();
       ref.read(emailVerificationPendingProvider.notifier).state = true;
@@ -209,6 +216,8 @@ class RouterNotifier extends ChangeNotifier {
     // Authenticated routes — allow through
     if (loc == '/enroll' || loc == '/create-course') return null;
     if (loc.startsWith('/course/')) return null;
+    if (loc.startsWith('/chat/')) return null;
+    if (loc.startsWith('/students/')) return null;
     return null;
   }
 }
@@ -233,6 +242,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           path: '/create-course',
           builder: (_, __) => const CreateCourseScreen()),
       GoRoute(
+        path: '/chat/:courseId',
+        builder: (_, state) {
+          final course = state.extra as dynamic;
+          return ChatScreen(course: course);
+        },
+      ),
+      GoRoute(
         path: '/course/:courseId',
         builder: (_, state) {
           final course = state.extra as dynamic;
@@ -244,6 +260,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (_, state) {
               final course = state.extra as dynamic;
               return DiseaseUploadScreen(course: course);
+            },
+          ),
+          GoRoute(
+            path: 'students',
+            builder: (_, state) {
+              final course = state.extra as dynamic;
+              return StudentsScreen(course: course);
             },
           ),
         ],

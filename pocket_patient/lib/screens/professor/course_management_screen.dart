@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -155,6 +156,14 @@ class _CourseManagementScreenState
             const _SectionLabel('SIMULATION SETTINGS'),
             const SizedBox(height: 8),
             _SectionCard(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: _MessagingWindowClock(
+                  start: _windowStart,
+                  end: _windowEnd,
+                ),
+              ),
+              const Divider(height: 1),
               _InfoRow(
                 icon: Icons.schedule_outlined,
                 label: 'Window start',
@@ -293,10 +302,9 @@ class _CourseManagementScreenState
                 title: const Text('Manage Students'),
                 subtitle: Text('${widget.course.studentCount} enrolled'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Student management coming soon')),
-                ),
+                onTap: () => context.push(
+                    '/course/${widget.course.id}/students',
+                    extra: widget.course),
               ),
             ]),
 
@@ -665,6 +673,160 @@ class _InfoRow extends StatelessWidget {
     );
     return onTap != null ? InkWell(onTap: onTap, child: row) : row;
   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Messaging window clock visual
+// ────────────────────────────────────────────────────────────────────────────
+
+class _MessagingWindowClock extends StatelessWidget {
+  final TimeOfDay start;
+  final TimeOfDay end;
+
+  const _MessagingWindowClock({required this.start, required this.end});
+
+  @override
+  Widget build(BuildContext context) {
+    final startLabel =
+        '${start.hourOfPeriod == 0 ? 12 : start.hourOfPeriod}:${start.minute.toString().padLeft(2, '0')} ${start.period.name.toUpperCase()}';
+    final endLabel =
+        '${end.hourOfPeriod == 0 ? 12 : end.hourOfPeriod}:${end.minute.toString().padLeft(2, '0')} ${end.period.name.toUpperCase()}';
+
+    // Compute window duration for the subtitle label.
+    final startMins = start.hour * 60 + start.minute;
+    final endMins = end.hour * 60 + end.minute;
+    final durationMins =
+        endMins > startMins ? endMins - startMins : (24 * 60 - startMins + endMins);
+    final hours = durationMins ~/ 60;
+    final mins = durationMins % 60;
+    final durationLabel = mins == 0 ? '${hours}h window' : '${hours}h ${mins}m window';
+
+    return Row(
+      children: [
+        SizedBox(
+          width: 80,
+          height: 80,
+          child: CustomPaint(
+            painter: _ClockPainter(
+              start: start,
+              end: end,
+              activeColor: const Color(0xFFCC0033),
+              trackColor: Colors.grey.shade200,
+            ),
+          ),
+        ),
+        const SizedBox(width: 20),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                    width: 10,
+                    height: 10,
+                    decoration: const BoxDecoration(
+                        color: Color(0xFFCC0033), shape: BoxShape.circle)),
+                const SizedBox(width: 6),
+                Text(startLabel,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                        color: Colors.grey.shade400, shape: BoxShape.circle)),
+                const SizedBox(width: 6),
+                Text(endLabel,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              durationLabel,
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ClockPainter extends CustomPainter {
+  final TimeOfDay start;
+  final TimeOfDay end;
+  final Color activeColor;
+  final Color trackColor;
+
+  const _ClockPainter({
+    required this.start,
+    required this.end,
+    required this.activeColor,
+    required this.trackColor,
+  });
+
+  /// Convert a TimeOfDay to an angle in radians on a 24-hour clock face.
+  /// 12:00 AM (midnight) = top (−π/2), going clockwise.
+  double _timeToAngle(TimeOfDay t) {
+    final fraction = (t.hour * 60 + t.minute) / (24 * 60);
+    return -pi / 2 + fraction * 2 * pi;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 6;
+    const strokeWidth = 8.0;
+
+    final trackPaint = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final activePaint = Paint()
+      ..color = activeColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    // Full 24-hour track.
+    canvas.drawArc(rect, 0, 2 * pi, false, trackPaint);
+
+    final startAngle = _timeToAngle(start);
+    final endAngle = _timeToAngle(end);
+    double sweepAngle = endAngle - startAngle;
+    if (sweepAngle <= 0) sweepAngle += 2 * pi;
+
+    // Active window arc.
+    canvas.drawArc(rect, startAngle, sweepAngle, false, activePaint);
+
+    // Hour ticks at 12, 3, 6, 9 (midnight, 6am, noon, 6pm on 24h clock).
+    final tickPaint = Paint()
+      ..color = Colors.grey.shade400
+      ..strokeWidth = 1.5;
+    for (int h in [0, 6, 12, 18]) {
+      final angle = -pi / 2 + (h / 24) * 2 * pi;
+      final inner = center + Offset(cos(angle), sin(angle)) * (radius - 8);
+      final outer = center + Offset(cos(angle), sin(angle)) * (radius + 2);
+      canvas.drawLine(inner, outer, tickPaint);
+    }
+
+    // Center dot.
+    canvas.drawCircle(center, 3, Paint()..color = Colors.grey.shade400);
+  }
+
+  @override
+  bool shouldRepaint(_ClockPainter old) =>
+      old.start != start || old.end != end;
 }
 
 class _StatusBadge extends StatelessWidget {

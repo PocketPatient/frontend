@@ -3,6 +3,7 @@ import '../config/constants.dart';
 import '../models/auth_response.dart';
 import '../models/course.dart';
 import '../models/disease_document_preview.dart';
+import '../models/enrolled_student.dart';
 import '../models/unit.dart';
 import '../models/user.dart';
 import 'auth_service.dart';
@@ -123,8 +124,19 @@ class ApiService {
   }
 
   // -------------------------------------------------------------------------
-  // Enrollments
+  // Enrollments / students
   // -------------------------------------------------------------------------
+
+  Future<List<EnrolledStudent>> getStudents(String courseId) async {
+    final resp = await _dio.get('/courses/$courseId/students');
+    return (resp.data as List)
+        .map((e) => EnrolledStudent.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> removeStudent(String courseId, String userId) async {
+    await _dio.delete('/courses/$courseId/students/$userId');
+  }
 
   Future<Course> joinCourse(String classCode) async {
     final resp = await _dio.post(
