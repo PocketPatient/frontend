@@ -3,6 +3,7 @@ import '../config/constants.dart';
 import '../models/auth_response.dart';
 import '../models/course.dart';
 import '../models/disease_document_preview.dart';
+import '../models/unit.dart';
 import '../models/user.dart';
 import 'auth_service.dart';
 
@@ -82,6 +83,43 @@ class ApiService {
         await _dio.post('/courses/$courseId/disease-document/confirm');
     return DiseaseDocumentConfirmResult.fromJson(
         resp.data as Map<String, dynamic>);
+  }
+
+  // -------------------------------------------------------------------------
+  // Units
+  // -------------------------------------------------------------------------
+
+  Future<List<Unit>> getUnits(String courseId) async {
+    final resp = await _dio.get('/courses/$courseId/units');
+    return (resp.data as List)
+        .map((e) => Unit.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Unit> releaseUnit(String courseId, String unitId) async {
+    final resp =
+        await _dio.put('/courses/$courseId/units/$unitId/release');
+    return Unit.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<Unit> closeUnit(String courseId, String unitId) async {
+    final resp =
+        await _dio.put('/courses/$courseId/units/$unitId/close');
+    return Unit.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<Course> updateCourseSettings(
+    String courseId, {
+    String? msgWindowStart,
+    String? msgWindowEnd,
+    String? msgTimezone,
+  }) async {
+    final body = <String, dynamic>{};
+    if (msgWindowStart != null) body['msg_window_start'] = msgWindowStart;
+    if (msgWindowEnd != null) body['msg_window_end'] = msgWindowEnd;
+    if (msgTimezone != null) body['msg_timezone'] = msgTimezone;
+    final resp = await _dio.put('/courses/$courseId', data: body);
+    return Course.fromJson(resp.data as Map<String, dynamic>);
   }
 
   // -------------------------------------------------------------------------

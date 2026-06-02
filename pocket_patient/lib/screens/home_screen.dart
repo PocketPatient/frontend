@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../models/course.dart';
 import '../providers/auth_provider.dart';
 import '../providers/courses_provider.dart';
+import '../providers/units_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -29,7 +30,16 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.read(coursesProvider.notifier).refresh(),
+        onRefresh: () async {
+          // Refresh courses, then invalidate each course's unit provider
+          // so stale unit counts don't linger after professor changes.
+          final oldCourses =
+              ref.read(coursesProvider).valueOrNull ?? [];
+          for (final c in oldCourses) {
+            ref.invalidate(unitsProvider(c.id));
+          }
+          await ref.read(coursesProvider.notifier).refresh();
+        },
         child: coursesAsync.when(
           loading: () =>
               const Center(child: CircularProgressIndicator()),
@@ -141,15 +151,19 @@ class _CourseList extends StatelessWidget {
   }
 }
 
-class _CourseCard extends StatelessWidget {
+class _CourseCard extends ConsumerWidget {
   final Course course;
   final bool isProfessor;
 
   const _CourseCard({required this.course, required this.isProfessor});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    // Students: watch released unit count from the units provider
+    final releasedCount = isProfessor
+        ? 0
+        : (ref.watch(unitsProvider(course.id)).valueOrNull ?? []).length;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -224,13 +238,34 @@ class _CourseCard extends StatelessWidget {
                   ),
                 ] else ...[
                   _InfoChip(
-                    icon: Icons.circle,
-                    label: course.isActive ? 'Active' : 'Inactive',
-                    color: course.isActive ? Colors.green : Colors.grey,
+                    icon: Icons.layers_outlined,
+                    label: releasedCount == 0
+                        ? 'No units active'
+                        : '$releasedCount unit${releasedCount == 1 ? '' : 's'} active',
+                    color: releasedCount > 0 ? Colors.green : Colors.grey,
+                  ),
+                  const SizedBox(width: 8),
+                  const _InfoChip(
+                    icon: Icons.chat_bubble_outline,
+                    label: 'No active case',
+                    color: Colors.grey,
                   ),
                 ],
               ],
             ),
+          // Info message for students
+          if (!isProfessor) ...[
+            const SizedBox(height: 10),
+            Text(
+              releasedCount == 0
+                  ? 'Your virtual patient will reach out when a unit is released.'
+                  : 'A virtual patient may reach out during the messaging window.',
+              style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic),
+            ),
+          ],
           ],
         ),
         ),
