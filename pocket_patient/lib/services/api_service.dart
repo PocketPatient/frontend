@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../config/constants.dart';
 import '../models/auth_response.dart';
+import '../models/chat_session.dart';
 import '../models/course.dart';
 import '../models/disease_document_preview.dart';
 import '../models/enrolled_student.dart';
@@ -121,6 +122,31 @@ class ApiService {
     if (msgTimezone != null) body['msg_timezone'] = msgTimezone;
     final resp = await _dio.put('/courses/$courseId', data: body);
     return Course.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  // -------------------------------------------------------------------------
+  // Sessions / chat
+  // -------------------------------------------------------------------------
+
+  /// Returns the active session for [courseId], or throws a 404 DioException
+  /// if the student has no active session in that course.
+  Future<ChatSession> getActiveSession(String courseId) async {
+    final resp =
+        await _dio.get('/sessions/active', queryParameters: {'course_id': courseId});
+    return ChatSession.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<ChatSession> createSession(String courseId) async {
+    final resp = await _dio.post('/sessions', data: {'course_id': courseId});
+    return ChatSession.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<ChatMessage> sendMessage(String sessionId, String content) async {
+    final resp = await _dio.post(
+      '/sessions/$sessionId/messages',
+      data: {'content': content},
+    );
+    return ChatMessage.fromJson(resp.data as Map<String, dynamic>);
   }
 
   // -------------------------------------------------------------------------

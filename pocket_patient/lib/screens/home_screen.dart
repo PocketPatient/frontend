@@ -207,9 +207,7 @@ class _CourseCard extends ConsumerWidget {
       child: InkWell(
         onTap: isProfessor
             ? () => context.push('/course/${course.id}', extra: course)
-            : releasedCount > 0
-                ? () => context.push('/chat/${course.id}', extra: course)
-                : null,
+            : () => context.push('/chat/${course.id}', extra: course),
         child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
