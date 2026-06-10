@@ -42,11 +42,19 @@ class SessionNotifier extends FamilyAsyncNotifier<ChatSession?, String> {
     final studentMsg =
         await ref.read(apiServiceProvider).sendMessage(session.id, content);
 
-    final updated = session.copyWith(
-      messages: [...session.messages, studentMsg],
-      turnCount: session.turnCount + 1,
-    );
-    state = AsyncData(updated);
+    // Re-read state after the await in case it changed while the request was
+    // in-flight (e.g. a concurrent refresh completed).  Merge rather than
+    // clobber to avoid losing any messages that arrived in the meantime.
+    final latest = state.valueOrNull ?? session;
+    final alreadyPresent = latest.messages.any((m) => m.id == studentMsg.id);
+    final messages = alreadyPresent
+        ? latest.messages
+        : [...latest.messages, studentMsg];
+
+    state = AsyncData(latest.copyWith(
+      messages: messages,
+      turnCount: latest.turnCount + 1,
+    ));
   }
 
   /// Submits a diagnosis. Returns the [DiagnosisResult] from the backend.
@@ -80,13 +88,31 @@ class SessionNotifier extends FamilyAsyncNotifier<ChatSession?, String> {
 
   /// Re-fetches the session from the API (used for pull-to-refresh to pick up
   /// async patient replies and status changes).
+  ///
+  /// Merges server messages with any locally-confirmed messages not yet present
+  /// in the server response (e.g. a student message that was just sent but
+  /// hasn't propagated into the GET response yet).  This prevents confirmed
+  /// messages from vanishing during the round-trip.
   Future<void> refresh() async {
-    final session = state.valueOrNull;
-    if (session == null) return;
+    final current = state.valueOrNull;
+    if (current == null) return;
     try {
       final refreshed =
-          await ref.read(apiServiceProvider).getSession(session.id);
-      state = AsyncData(refreshed);
+          await ref.read(apiServiceProvider).getSession(current.id);
+
+      final serverIds = {for (final m in refreshed.messages) m.id};
+      final localOnly = current.messages
+          .where((m) => !serverIds.contains(m.id))
+          .toList();
+
+      if (localOnly.isEmpty) {
+        state = AsyncData(refreshed);
+      } else {
+        // Merge locally-confirmed messages back in, sorted by sentAt.
+        final merged = [...localOnly, ...refreshed.messages]
+          ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+        state = AsyncData(refreshed.copyWith(messages: merged));
+      }
     } on DioException {
       // Keep existing state on network error — user can retry.
     }
