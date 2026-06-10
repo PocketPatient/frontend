@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../config/constants.dart';
 import '../models/auth_response.dart';
@@ -228,6 +229,20 @@ class _AuthInterceptor extends Interceptor {
           data: {'refresh_token': refreshToken},
         );
         final auth = AuthResponse.fromJson(resp.data as Map<String, dynamic>);
+
+        // Cross-account guard: if the refreshed token belongs to a different
+        // user than the one who originally logged in, the credentials are
+        // mixed (e.g. access token for user A, refresh token for user B).
+        // Clear everything and let the router redirect to the login screen.
+        final storedUserId = await _authService.readUserId();
+        final refreshedUserId = _subFromJwt(auth.accessToken);
+        if (storedUserId != null &&
+            refreshedUserId != null &&
+            storedUserId != refreshedUserId) {
+          await _authService.clearAll();
+          return handler.next(err);
+        }
+
         await _authService.writeToken(auth.accessToken);
         await _authService.writeRefreshToken(auth.refreshToken);
         final opts = err.requestOptions;
@@ -240,5 +255,22 @@ class _AuthInterceptor extends Interceptor {
       }
     }
     handler.next(err);
+  }
+
+  /// Decodes the JWT payload (without verifying the signature) and returns
+  /// the `sub` claim, which is the backend user UUID.
+  static String? _subFromJwt(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      // Base64url → base64 (add padding)
+      var payload = parts[1];
+      payload += '=' * ((4 - payload.length % 4) % 4);
+      final decoded = utf8.decode(base64Url.decode(payload));
+      final map = jsonDecode(decoded) as Map<String, dynamic>;
+      return map['sub'] as String?;
+    } catch (_) {
+      return null;
+    }
   }
 }

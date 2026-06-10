@@ -27,8 +27,16 @@ class AuthService {
   Future<void> writeRefreshToken(String token) =>
       _storage.write(key: kRefreshTokenKey, value: token);
 
+  /// The backend user UUID stored alongside the tokens so the refresh
+  /// interceptor can detect cross-account token mixing.
+  Future<String?> readUserId() => _storage.read(key: kUserIdKey);
+
+  Future<void> writeUserId(String userId) =>
+      _storage.write(key: kUserIdKey, value: userId);
+
   Future<void> clearAll() async {
     await _storage.delete(key: kTokenKey);
     await _storage.delete(key: kRefreshTokenKey);
+    await _storage.delete(key: kUserIdKey);
   }
 }

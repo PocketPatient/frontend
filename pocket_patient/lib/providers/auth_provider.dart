@@ -170,7 +170,11 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     final authResp = await ref.read(apiServiceProvider).login(idToken!);
     await ref.read(authServiceProvider).writeToken(authResp.accessToken);
     await ref.read(authServiceProvider).writeRefreshToken(authResp.refreshToken);
-    return await ref.read(apiServiceProvider).getMe();
+    final user = await ref.read(apiServiceProvider).getMe();
+    // Persist the user ID so the refresh interceptor can detect cross-account
+    // token mixing (e.g. access token for user A, refresh token for user B).
+    await ref.read(authServiceProvider).writeUserId(user.id);
+    return user;
   }
 }
 
