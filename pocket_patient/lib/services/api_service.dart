@@ -3,6 +3,7 @@ import '../config/constants.dart';
 import '../models/auth_response.dart';
 import '../models/chat_session.dart';
 import '../models/course.dart';
+import '../models/diagnosis_result.dart';
 import '../models/disease_document_preview.dart';
 import '../models/enrolled_student.dart';
 import '../models/unit.dart';
@@ -141,12 +142,31 @@ class ApiService {
     return ChatSession.fromJson(resp.data as Map<String, dynamic>);
   }
 
+  Future<ChatSession> getSession(String sessionId) async {
+    final resp = await _dio.get('/sessions/$sessionId');
+    return ChatSession.fromJson(resp.data as Map<String, dynamic>);
+  }
+
   Future<ChatMessage> sendMessage(String sessionId, String content) async {
     final resp = await _dio.post(
       '/sessions/$sessionId/messages',
       data: {'content': content},
     );
     return ChatMessage.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<DiagnosisResult> submitDiagnosis(
+    String sessionId,
+    String primaryDx,
+    List<String> differentials,
+    String justification,
+  ) async {
+    final resp = await _dio.post('/sessions/$sessionId/diagnose', data: {
+      'primary_dx': primaryDx,
+      'differentials': differentials,
+      'justification': justification,
+    });
+    return DiagnosisResult.fromJson(resp.data as Map<String, dynamic>);
   }
 
   // -------------------------------------------------------------------------

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/course.dart';
 import '../providers/auth_provider.dart';
+import '../providers/completed_sessions_provider.dart';
 import '../providers/courses_provider.dart';
 import '../providers/units_provider.dart';
 import '../widgets/offline_banner.dart';
@@ -191,10 +192,14 @@ class _CourseCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    // Students: watch released unit count from the units provider
+    // Students: watch released unit count and completed session count
     final releasedCount = isProfessor
         ? 0
         : (ref.watch(unitsProvider(course.id)).valueOrNull ?? []).length;
+    final completedCount = isProfessor
+        ? 0
+        : (ref.watch(completedSessionsProvider(course.id)).valueOrNull ?? [])
+            .length;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -276,10 +281,12 @@ class _CourseCard extends ConsumerWidget {
                     color: releasedCount > 0 ? Colors.green : Colors.grey,
                   ),
                   const SizedBox(width: 8),
-                  const _InfoChip(
-                    icon: Icons.chat_bubble_outline,
-                    label: 'No active case',
-                    color: Colors.grey,
+                  _InfoChip(
+                    icon: Icons.check_circle_outline,
+                    label: completedCount == 0
+                        ? 'No cases done'
+                        : '$completedCount completed',
+                    color: completedCount > 0 ? Colors.blue : Colors.grey,
                   ),
                 ],
               ],

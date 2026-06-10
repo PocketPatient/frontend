@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/chat_session.dart';
 import '../../models/course.dart';
+import '../../models/diagnosis_result.dart';
+import '../../providers/completed_sessions_provider.dart';
 import '../../providers/session_provider.dart';
+import 'diagnosis_sheet.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final Course course;
@@ -20,7 +24,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   // Optimistic / transient send state
   String? _pendingContent; // student message being sent right now
-  bool _patientTyping = false;
   bool _sendError = false;
 
   @override
@@ -55,30 +58,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     setState(() {
       _pendingContent = text;
-      _patientTyping = false;
       _sendError = false;
     });
     _scrollToBottom();
 
-    // Short delay so the optimistic bubble renders, then show typing.
-    await Future.delayed(const Duration(milliseconds: 200));
-    if (!mounted) return;
-    setState(() => _patientTyping = true);
-    _scrollToBottom();
-
     try {
-      await ref.read(sessionProvider(widget.course.id).notifier).sendMessage(text);
+      await ref
+          .read(sessionProvider(widget.course.id).notifier)
+          .sendMessage(text);
       if (!mounted) return;
       setState(() {
         _pendingContent = null;
-        _patientTyping = false;
         _sendError = false;
       });
       _scrollToBottom();
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _patientTyping = false;
         _sendError = true;
       });
     }
@@ -87,31 +83,89 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _retry() async {
     final text = _pendingContent;
     if (text == null) return;
-    setState(() {
-      _sendError = false;
-      _patientTyping = true;
-    });
+    setState(() => _sendError = false);
     try {
-      await ref.read(sessionProvider(widget.course.id).notifier).sendMessage(text);
+      await ref
+          .read(sessionProvider(widget.course.id).notifier)
+          .sendMessage(text);
       if (!mounted) return;
       setState(() {
         _pendingContent = null;
-        _patientTyping = false;
         _sendError = false;
       });
       _scrollToBottom();
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _patientTyping = false;
-        _sendError = true;
-      });
+      setState(() => _sendError = true);
     }
   }
 
   Future<void> _startNewSession() async {
-    await ref.read(sessionProvider(widget.course.id).notifier).startNewSession();
+    await ref
+        .read(sessionProvider(widget.course.id).notifier)
+        .startNewSession();
     _scrollToBottom(animated: false);
+  }
+
+  Future<void> _refresh() async {
+    await ref.read(sessionProvider(widget.course.id).notifier).refresh();
+    _scrollToBottom(animated: false);
+  }
+
+  Future<void> _openDiagnosisSheet() async {
+    final result = await showDiagnosisSheet(context, ref, widget.course.id);
+    if (result == null || !mounted) return;
+
+    if (result.correct) {
+      // Cache the completed session ID
+      final session =
+          ref.read(sessionProvider(widget.course.id)).valueOrNull;
+      if (session != null) {
+        await ref
+            .read(completedSessionsProvider(widget.course.id).notifier)
+            .addSession(session.id);
+      }
+      if (!mounted) return;
+      // Navigate to result screen
+      context.push(
+        '/diagnosis-result/${widget.course.id}',
+        extra: result,
+      );
+    } else {
+      // Incorrect — show hint snackbar
+      final hint = result.hint;
+      if (!mounted) return;
+      if (hint != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.orange[700],
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 6),
+            content: Row(
+              children: [
+                const Icon(Icons.lightbulb_outline,
+                    color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    hint,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Incorrect diagnosis — keep interviewing the patient.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -141,6 +195,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ],
           ),
           actions: [
+            // Diagnose button — only when session is active
+            if (sessionAsync.valueOrNull?.isActive == true)
+              TextButton.icon(
+                onPressed: _openDiagnosisSheet,
+                icon: const Icon(Icons.local_hospital_outlined,
+                    size: 18, color: Colors.white),
+                label: const Text(
+                  'Diagnose',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+              ),
             IconButton(
               icon: const Icon(Icons.info_outline),
               tooltip: 'Case info',
@@ -151,8 +222,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         body: sessionAsync.when(
           loading: () =>
               const Center(child: CircularProgressIndicator()),
-          error: (e, _) => _ErrorState(onRetry: () => ref
-              .invalidate(sessionProvider(widget.course.id))),
+          error: (e, _) => _ErrorState(
+              onRetry: () =>
+                  ref.invalidate(sessionProvider(widget.course.id))),
           data: (session) => session == null
               ? _NoSessionState(
                   onStart: _startNewSession,
@@ -164,10 +236,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   inputCtrl: _inputCtrl,
                   focusNode: _focusNode,
                   pendingContent: _pendingContent,
-                  patientTyping: _patientTyping,
                   sendError: _sendError,
                   onSend: _send,
                   onRetry: _retry,
+                  onRefresh: _refresh,
+                  onDiagnose: session.isActive
+                      ? _openDiagnosisSheet
+                      : null,
+                  onViewResults: session.isDiagnosed
+                      ? () => context.push(
+                            '/diagnosis-result/${widget.course.id}',
+                            extra: _resultFromSession(session),
+                          )
+                      : null,
                 ),
         ),
       ),
@@ -175,7 +256,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _showCaseInfoSheet(BuildContext context) {
-    final session = ref.read(sessionProvider(widget.course.id)).valueOrNull;
+    final session =
+        ref.read(sessionProvider(widget.course.id)).valueOrNull;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -248,6 +330,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 }
 
 // ---------------------------------------------------------------------------
+// Build a lightweight DiagnosisResult from a diagnosed ChatSession
+// (for navigating to result screen when session is already diagnosed)
+// ---------------------------------------------------------------------------
+
+DiagnosisResult _resultFromSession(ChatSession session) {
+  return DiagnosisResult(
+    correct: true,
+    score: session.score,
+    reveal: session.reveal,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Chat body — shown when session exists
 // ---------------------------------------------------------------------------
 
@@ -257,10 +352,12 @@ class _ChatBody extends StatelessWidget {
   final TextEditingController inputCtrl;
   final FocusNode focusNode;
   final String? pendingContent;
-  final bool patientTyping;
   final bool sendError;
   final VoidCallback onSend;
   final VoidCallback onRetry;
+  final Future<void> Function() onRefresh;
+  final Future<void> Function()? onDiagnose;
+  final VoidCallback? onViewResults;
 
   const _ChatBody({
     required this.session,
@@ -268,78 +365,157 @@ class _ChatBody extends StatelessWidget {
     required this.inputCtrl,
     required this.focusNode,
     required this.pendingContent,
-    required this.patientTyping,
     required this.sendError,
     required this.onSend,
     required this.onRetry,
+    required this.onRefresh,
+    this.onDiagnose,
+    this.onViewResults,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Build the combined message list: confirmed + pending + typing indicator
     final confirmed = session.messages;
     final bool showPending = pendingContent != null;
-    final bool showLastPatientAwaiting = !showPending &&
-        !patientTyping &&
+    final bool isDiagnosed = session.isDiagnosed;
+
+    // Show awaiting-reply indicator only when the last confirmed message is
+    // from the student and we're not in a pending send state (and not diagnosed).
+    final bool showLastPatientAwaiting = !isDiagnosed &&
+        !showPending &&
         confirmed.isNotEmpty &&
         !confirmed.last.isPatient;
 
-    // Total item count
     int itemCount = confirmed.length;
-    if (showPending) itemCount++; // optimistic student bubble
-    if (sendError) itemCount++; // retry row
-    if (patientTyping) itemCount++; // typing indicator
-    if (showLastPatientAwaiting) itemCount++; // static awaiting
+    if (showPending) itemCount++;
+    if (sendError) itemCount++;
+    if (showLastPatientAwaiting) itemCount++;
 
     return Column(
       children: [
+        // Diagnosed banner
+        if (isDiagnosed) _DiagnosedBanner(reveal: session.reveal),
+
+        // Message list with pull-to-refresh
         Expanded(
-          child: ListView.builder(
-            controller: scrollCtrl,
-            padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
-            itemCount: itemCount,
-            itemBuilder: (context, index) {
-              // Confirmed messages
-              if (index < confirmed.length) {
-                return _BubbleTile(message: confirmed[index]);
-              }
+          child: RefreshIndicator(
+            onRefresh: onRefresh,
+            color: const Color(0xFFCC0033),
+            child: ListView.builder(
+              controller: scrollCtrl,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+              itemCount: itemCount,
+              itemBuilder: (context, index) {
+                if (index < confirmed.length) {
+                  return _BubbleTile(message: confirmed[index]);
+                }
 
-              int extra = index - confirmed.length;
+                int extra = index - confirmed.length;
 
-              // Optimistic pending student message
-              if (showPending && extra == 0) {
-                return _PendingBubble(content: pendingContent!);
-              }
-              if (showPending) extra--;
+                if (showPending && extra == 0) {
+                  return _PendingBubble(content: pendingContent!);
+                }
+                if (showPending) extra--;
 
-              // Error / retry row
-              if (sendError && extra == 0) {
-                return _RetryRow(onRetry: onRetry);
-              }
-              if (sendError) extra--;
+                if (sendError && extra == 0) {
+                  return _RetryRow(onRetry: onRetry);
+                }
+                if (sendError) extra--;
 
-              // Patient typing indicator
-              if (patientTyping && extra == 0) {
-                return const _TypingIndicator();
-              }
+                if (showLastPatientAwaiting && extra == 0) {
+                  return const _AwaitingBubble();
+                }
 
-              // Static awaiting (last confirmed msg was from student)
-              if (showLastPatientAwaiting && extra == 0) {
-                return const _AwaitingBubble();
-              }
-
-              return const SizedBox.shrink();
-            },
+                return const SizedBox.shrink();
+              },
+            ),
           ),
         ),
+
         const Divider(height: 1),
-        _InputBar(
-          controller: inputCtrl,
-          focusNode: focusNode,
-          enabled: session.isActive && pendingContent == null && !patientTyping,
-          onSend: onSend,
-        ),
+
+        // Bottom: input (active) or completed actions (diagnosed)
+        if (isDiagnosed)
+          _DiagnosedBar(onViewResults: onViewResults)
+        else
+          _InputBar(
+            controller: inputCtrl,
+            focusNode: focusNode,
+            enabled: session.isActive && pendingContent == null,
+            onSend: onSend,
+          ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Diagnosed banner & bar
+// ---------------------------------------------------------------------------
+
+class _DiagnosedBanner extends StatelessWidget {
+  final RevealData? reveal;
+
+  const _DiagnosedBanner({this.reveal});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.green[600],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            const Icon(Icons.check_circle_outline,
+                color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                reveal != null
+                    ? 'Case complete — ${reveal!.diseaseName}'
+                    : 'Case complete',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DiagnosedBar extends StatelessWidget {
+  final VoidCallback? onViewResults;
+
+  const _DiagnosedBar({this.onViewResults});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        child: SizedBox(
+          width: double.infinity,
+          height: 46,
+          child: ElevatedButton.icon(
+            onPressed: onViewResults,
+            icon: const Icon(Icons.bar_chart_rounded, size: 18),
+            label: const Text('View Results'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFCC0033),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -619,94 +795,6 @@ class _RetryRow extends StatelessWidget {
   }
 }
 
-class _TypingIndicator extends StatefulWidget {
-  const _TypingIndicator();
-
-  @override
-  State<_TypingIndicator> createState() => _TypingIndicatorState();
-}
-
-class _TypingIndicatorState extends State<_TypingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: Colors.grey[300],
-            child: const Icon(Icons.person_outline,
-                size: 18, color: Colors.white),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(18),
-                topRight: Radius.circular(18),
-                bottomLeft: Radius.circular(4),
-                bottomRight: Radius.circular(18),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(3, (i) {
-                final delay = i / 3;
-                return AnimatedBuilder(
-                  animation: _ctrl,
-                  builder: (_, __) {
-                    final t = ((_ctrl.value - delay) % 1.0).abs();
-                    final opacity = t < 0.5
-                        ? 0.3 + t * 1.4
-                        : 1.0 - (t - 0.5) * 1.4;
-                    return Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 2),
-                      child: Opacity(
-                        opacity: opacity.clamp(0.3, 1.0),
-                        child: Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[500],
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              }),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _AwaitingBubble extends StatelessWidget {
   const _AwaitingBubble();
 
@@ -893,7 +981,6 @@ String _relativeTime(DateTime dt) {
   final diff = DateTime.now().difference(dt);
   if (diff.inMinutes < 1) return 'just now';
   if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
-  // Absolute for > 1 hour
   final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
   final min = dt.minute.toString().padLeft(2, '0');
   final period = dt.hour < 12 ? 'AM' : 'PM';

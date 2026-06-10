@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../models/diagnosis_result.dart';
 import '../models/user.dart';
 import '../screens/email_verification_screen.dart';
 import '../screens/home_screen.dart';
@@ -14,6 +15,7 @@ import '../screens/professor/disease_upload_screen.dart';
 import '../screens/professor/students_screen.dart';
 import '../screens/role_selection_screen.dart';
 import '../screens/student/chat_screen.dart';
+import '../screens/student/diagnosis_result_screen.dart';
 import '../screens/student/enroll_screen.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -218,6 +220,7 @@ class RouterNotifier extends ChangeNotifier {
     if (loc.startsWith('/course/')) return null;
     if (loc.startsWith('/chat/')) return null;
     if (loc.startsWith('/students/')) return null;
+    if (loc.startsWith('/diagnosis-result/')) return null;
     return null;
   }
 }
@@ -246,6 +249,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) {
           final course = state.extra as dynamic;
           return ChatScreen(course: course);
+        },
+      ),
+      GoRoute(
+        path: '/diagnosis-result/:courseId',
+        builder: (_, state) {
+          final result = state.extra as DiagnosisResult;
+          final courseId = state.pathParameters['courseId']!;
+          return DiagnosisResultScreen(result: result, courseId: courseId);
         },
       ),
       GoRoute(

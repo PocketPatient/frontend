@@ -1,3 +1,5 @@
+import 'diagnosis_result.dart';
+
 enum MessageRole { student, patient, system }
 
 class ChatMessage {
@@ -43,6 +45,8 @@ class ChatSession {
   final int turnCount;
   final DateTime startedAt;
   final List<ChatMessage> messages;
+  final ScoreData? score;
+  final RevealData? reveal;
 
   const ChatSession({
     required this.id,
@@ -52,19 +56,30 @@ class ChatSession {
     required this.turnCount,
     required this.startedAt,
     required this.messages,
+    this.score,
+    this.reveal,
   });
 
   bool get isActive => status == 'active';
+  bool get isDiagnosed => status == 'diagnosed';
 
-  ChatSession copyWith({List<ChatMessage>? messages, int? turnCount}) =>
+  ChatSession copyWith({
+    List<ChatMessage>? messages,
+    int? turnCount,
+    String? status,
+    ScoreData? score,
+    RevealData? reveal,
+  }) =>
       ChatSession(
         id: id,
         diseaseId: diseaseId,
         courseId: courseId,
-        status: status,
+        status: status ?? this.status,
         turnCount: turnCount ?? this.turnCount,
         startedAt: startedAt,
         messages: messages ?? this.messages,
+        score: score ?? this.score,
+        reveal: reveal ?? this.reveal,
       );
 
   factory ChatSession.fromJson(Map<String, dynamic> json) => ChatSession(
@@ -79,5 +94,11 @@ class ChatSession {
                 .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
                 .toList()
             : const [],
+        score: json['score'] != null
+            ? ScoreData.fromJson(json['score'] as Map<String, dynamic>)
+            : null,
+        reveal: json['reveal'] != null
+            ? RevealData.fromJson(json['reveal'] as Map<String, dynamic>)
+            : null,
       );
 }
