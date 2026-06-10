@@ -161,11 +161,17 @@ class ApiService {
     List<String> differentials,
     String justification,
   ) async {
-    final resp = await _dio.post('/sessions/$sessionId/diagnose', data: {
-      'primary_dx': primaryDx,
-      'differentials': differentials,
-      'justification': justification,
-    });
+    // Incorrect submissions trigger two sequential LLM calls (grade + hint),
+    // which can take 10–20 s. Override the default 10 s receive timeout.
+    final resp = await _dio.post(
+      '/sessions/$sessionId/diagnose',
+      data: {
+        'primary_dx': primaryDx,
+        'differentials': differentials,
+        'justification': justification,
+      },
+      options: Options(receiveTimeout: const Duration(seconds: 45)),
+    );
     return DiagnosisResult.fromJson(resp.data as Map<String, dynamic>);
   }
 
