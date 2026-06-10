@@ -91,6 +91,13 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
         Navigator.of(context).pop(result);
       }
     } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      // Session no longer exists — invalidate so the UI resets cleanly.
+      if (status == 404) {
+        ref.invalidate(sessionProvider(widget.courseId));
+        if (mounted) Navigator.of(context).pop(null);
+        return;
+      }
       final detail = _extractDetail(e);
       setState(() {
         _errorText = detail ?? 'Submission failed. Please try again.';
@@ -105,17 +112,26 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
   }
 
   String? _extractDetail(DioException e) {
+    final status = e.response?.statusCode;
     try {
       final data = e.response?.data;
       if (data is Map) {
         final detail = data['detail'];
-        if (detail is String) return detail;
+        // Translate generic FastAPI messages into something actionable.
+        if (detail is String && detail.isNotEmpty) {
+          if (detail == 'Not Found' || detail == 'Session not found') {
+            return null; // handled above by invalidating the session
+          }
+          return detail;
+        }
         if (detail is List && detail.isNotEmpty) {
           final first = detail.first;
           if (first is Map) return first['msg']?.toString();
         }
       }
     } catch (_) {}
+    if (status == 409) return 'This case is no longer active.';
+    if (status == 422) return 'Please check your inputs and try again.';
     return null;
   }
 
