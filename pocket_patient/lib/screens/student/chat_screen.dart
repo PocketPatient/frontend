@@ -114,58 +114,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _openDiagnosisSheet() async {
     final result = await showDiagnosisSheet(context, ref, widget.course.id);
-    if (result == null || !mounted) return;
+    // null  → sheet dismissed without submission, or stale session (404)
+    // !correct → user already saw feedback inside the sheet; nothing to do here
+    if (result == null || !result.correct || !mounted) return;
 
-    if (result.correct) {
-      // Cache the completed session ID
-      final session =
-          ref.read(sessionProvider(widget.course.id)).valueOrNull;
-      if (session != null) {
-        await ref
-            .read(completedSessionsProvider(widget.course.id).notifier)
-            .addSession(session.id);
-      }
-      if (!mounted) return;
-      // Navigate to result screen
-      context.push(
-        '/diagnosis-result/${widget.course.id}',
-        extra: result,
-      );
-    } else {
-      // Incorrect — show hint snackbar
-      final hint = result.hint;
-      if (!mounted) return;
-      if (hint != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.orange[700],
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 6),
-            content: Row(
-              children: [
-                const Icon(Icons.lightbulb_outline,
-                    color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    hint,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                Text('Incorrect diagnosis — keep interviewing the patient.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+    // Correct — cache the session and navigate to the result screen.
+    final session = ref.read(sessionProvider(widget.course.id)).valueOrNull;
+    if (session != null) {
+      await ref
+          .read(completedSessionsProvider(widget.course.id).notifier)
+          .addSession(session.id);
     }
+    if (!mounted) return;
+    context.push(
+      '/diagnosis-result/${widget.course.id}',
+      extra: result,
+    );
   }
 
   @override

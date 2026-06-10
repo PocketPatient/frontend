@@ -5,8 +5,9 @@ import '../../models/diagnosis_result.dart';
 import '../../providers/session_provider.dart';
 
 /// Shows the diagnosis submission bottom sheet.
-/// Returns the [DiagnosisResult] if a valid submission was made, or null
-/// if the user dismissed without submitting.
+/// Returns a [DiagnosisResult] only when the user explicitly dismisses after
+/// seeing the result (correct OR incorrect).  Returns null if the sheet was
+/// closed without a submission, or if the session was stale (404).
 Future<DiagnosisResult?> showDiagnosisSheet(
   BuildContext context,
   WidgetRef ref,
@@ -16,6 +17,7 @@ Future<DiagnosisResult?> showDiagnosisSheet(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    isDismissible: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -44,8 +46,10 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
   bool _submitting = false;
   String? _errorText;
 
-  static const int _justificationMin = 50;
-  static const int _justificationMax = 2000;
+  /// Set when the API returns correct=false — switches the sheet to the
+  /// feedback view instead of the form.
+  DiagnosisResult? _incorrectResult;
+
   static const int _maxDifferentials = 3;
 
   @override
@@ -87,15 +91,26 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
             List.unmodifiable(_differentials),
             _justificationCtrl.text.trim(),
           );
-      if (mounted) {
+
+      if (!mounted) return;
+
+      if (result.correct) {
+        // Correct — pop immediately so caller can navigate to result screen.
         Navigator.of(context).pop(result);
+      } else {
+        // Incorrect — stay open and show feedback inline.
+        setState(() {
+          _incorrectResult = result;
+          _submitting = false;
+        });
       }
     } on DioException catch (e) {
+      if (!mounted) return;
       final status = e.response?.statusCode;
-      // Session no longer exists — invalidate so the UI resets cleanly.
       if (status == 404) {
+        // Stale session — reset provider and dismiss silently.
         ref.invalidate(sessionProvider(widget.courseId));
-        if (mounted) Navigator.of(context).pop(null);
+        Navigator.of(context).pop(null);
         return;
       }
       final detail = _extractDetail(e);
@@ -103,7 +118,8 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
         _errorText = detail ?? 'Submission failed. Please try again.';
         _submitting = false;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _errorText = 'An unexpected error occurred.';
         _submitting = false;
@@ -117,10 +133,9 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
       final data = e.response?.data;
       if (data is Map) {
         final detail = data['detail'];
-        // Translate generic FastAPI messages into something actionable.
         if (detail is String && detail.isNotEmpty) {
           if (detail == 'Not Found' || detail == 'Session not found') {
-            return null; // handled above by invalidating the session
+            return null;
           }
           return detail;
         }
@@ -137,7 +152,203 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final justLen = _justificationCtrl.text.length;
+    // If we have an incorrect result, show the feedback view instead.
+    if (_incorrectResult != null) {
+      return _IncorrectFeedbackView(
+        result: _incorrectResult!,
+        onContinue: () => Navigator.of(context).pop(_incorrectResult),
+      );
+    }
+
+    return _FormView(
+      formKey: _formKey,
+      primaryCtrl: _primaryCtrl,
+      differentialCtrl: _differentialCtrl,
+      justificationCtrl: _justificationCtrl,
+      differentials: _differentials,
+      submitting: _submitting,
+      errorText: _errorText,
+      onAddDifferential: _addDifferential,
+      onRemoveDifferential: _removeDifferential,
+      onJustificationChanged: () => setState(() {}),
+      onSubmit: _submit,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Incorrect feedback view — replaces the form when diagnosis is wrong
+// ---------------------------------------------------------------------------
+
+class _IncorrectFeedbackView extends StatelessWidget {
+  final DiagnosisResult result;
+  final VoidCallback onContinue;
+
+  const _IncorrectFeedbackView({
+    required this.result,
+    required this.onContinue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hint = result.hint;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle bar
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 28),
+
+          // X icon
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.orange[200]!, width: 2),
+            ),
+            child: Icon(Icons.close_rounded, size: 40, color: Colors.orange[700]),
+          ),
+          const SizedBox(height: 16),
+
+          Text(
+            'Incorrect Diagnosis',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange[800],
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Keep interviewing the patient and try again.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+          ),
+
+          if (hint != null && hint.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.orange[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.lightbulb_outline,
+                          size: 16, color: Colors.orange[700]),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Hint',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: Colors.orange[800],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    hint,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.orange[900],
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 24),
+
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: onContinue,
+              icon: const Icon(Icons.chat_bubble_outline, size: 18),
+              label: const Text(
+                'Continue Interviewing',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFCC0033),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Form view — the normal submission UI
+// ---------------------------------------------------------------------------
+
+class _FormView extends StatelessWidget {
+  final GlobalKey<FormState> formKey;
+  final TextEditingController primaryCtrl;
+  final TextEditingController differentialCtrl;
+  final TextEditingController justificationCtrl;
+  final List<String> differentials;
+  final bool submitting;
+  final String? errorText;
+  final VoidCallback onAddDifferential;
+  final void Function(String) onRemoveDifferential;
+  final VoidCallback onJustificationChanged;
+  final VoidCallback onSubmit;
+
+  static const int _justificationMin = 50;
+  static const int _justificationMax = 2000;
+  static const int _maxDifferentials = 3;
+
+  const _FormView({
+    required this.formKey,
+    required this.primaryCtrl,
+    required this.differentialCtrl,
+    required this.justificationCtrl,
+    required this.differentials,
+    required this.submitting,
+    required this.errorText,
+    required this.onAddDifferential,
+    required this.onRemoveDifferential,
+    required this.onJustificationChanged,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final justLen = justificationCtrl.text.length;
     final justOk = justLen >= _justificationMin;
 
     return Padding(
@@ -148,7 +359,7 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom + 24,
       ),
       child: Form(
-        key: _formKey,
+        key: formKey,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -197,7 +408,7 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
                       color: Colors.grey[800])),
               const SizedBox(height: 6),
               TextFormField(
-                controller: _primaryCtrl,
+                controller: primaryCtrl,
                 textCapitalization: TextCapitalization.sentences,
                 maxLength: 255,
                 decoration: _fieldDecoration(
@@ -225,21 +436,21 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
                 children: [
                   Expanded(
                     child: TextField(
-                      controller: _differentialCtrl,
+                      controller: differentialCtrl,
                       textCapitalization: TextCapitalization.sentences,
-                      enabled: _differentials.length < _maxDifferentials,
+                      enabled: differentials.length < _maxDifferentials,
                       decoration: _fieldDecoration(
-                        hint: _differentials.length < _maxDifferentials
+                        hint: differentials.length < _maxDifferentials
                             ? 'e.g. Bipolar II Disorder'
                             : 'Maximum reached',
                       ),
-                      onSubmitted: (_) => _addDifferential(),
+                      onSubmitted: (_) => onAddDifferential(),
                     ),
                   ),
                   const SizedBox(width: 8),
                   IconButton.filled(
-                    onPressed: _differentials.length < _maxDifferentials
-                        ? _addDifferential
+                    onPressed: differentials.length < _maxDifferentials
+                        ? onAddDifferential
                         : null,
                     icon: const Icon(Icons.add),
                     style: IconButton.styleFrom(
@@ -251,20 +462,20 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
                   ),
                 ],
               ),
-              if (_differentials.isNotEmpty) ...[
+              if (differentials.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
-                  children: _differentials
+                  children: differentials
                       .map((d) => Chip(
                             label: Text(d,
                                 style: const TextStyle(fontSize: 13)),
                             deleteIcon:
                                 const Icon(Icons.close, size: 16),
-                            onDeleted: () => _removeDifferential(d),
-                            backgroundColor:
-                                const Color(0xFFCC0033).withValues(alpha: 0.08),
+                            onDeleted: () => onRemoveDifferential(d),
+                            backgroundColor: const Color(0xFFCC0033)
+                                .withValues(alpha: 0.08),
                             side: const BorderSide(
                                 color: Color(0xFFCC0033), width: 0.8),
                             labelStyle: const TextStyle(
@@ -290,7 +501,8 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
                     '$justLen / $_justificationMax',
                     style: TextStyle(
                       fontSize: 11,
-                      color: justOk ? Colors.green[600] : Colors.grey[500],
+                      color:
+                          justOk ? Colors.green[600] : Colors.grey[500],
                     ),
                   ),
                 ],
@@ -298,11 +510,12 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
               const SizedBox(height: 4),
               Text(
                 'Min $_justificationMin characters — describe your reasoning.',
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                style:
+                    TextStyle(fontSize: 12, color: Colors.grey[500]),
               ),
               const SizedBox(height: 6),
               TextFormField(
-                controller: _justificationCtrl,
+                controller: justificationCtrl,
                 maxLines: 5,
                 maxLength: _justificationMax,
                 textCapitalization: TextCapitalization.sentences,
@@ -311,17 +524,18 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
                       'Describe the symptoms, timeline, and reasoning that led to your diagnosis…',
                   counter: const SizedBox.shrink(),
                 ),
-                onChanged: (_) => setState(() {}),
+                onChanged: (_) => onJustificationChanged(),
                 validator: (v) {
-                  if (v == null || v.trim().length < _justificationMin) {
+                  if (v == null ||
+                      v.trim().length < _justificationMin) {
                     return 'Justification must be at least $_justificationMin characters';
                   }
                   return null;
                 },
               ),
 
-              // Error banner
-              if (_errorText != null) ...[
+              // API error banner
+              if (errorText != null) ...[
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -338,7 +552,7 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _errorText!,
+                          errorText!,
                           style: TextStyle(
                               fontSize: 13, color: Colors.red[800]),
                         ),
@@ -354,7 +568,7 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _submitting ? null : _submit,
+                  onPressed: submitting ? null : onSubmit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFCC0033),
                     foregroundColor: Colors.white,
@@ -362,7 +576,7 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: _submitting
+                  child: submitting
                       ? const SizedBox(
                           width: 22,
                           height: 22,
@@ -374,7 +588,8 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
                       : const Text(
                           'Submit Diagnosis',
                           style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w600),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600),
                         ),
                 ),
               ),
