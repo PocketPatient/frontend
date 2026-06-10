@@ -114,22 +114,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _openDiagnosisSheet() async {
     final result = await showDiagnosisSheet(context, ref, widget.course.id);
-    // null  → sheet dismissed without submission, or stale session (404)
-    // !correct → user already saw feedback inside the sheet; nothing to do here
+    // null  → cancelled or stale-session 404 (sheet already handled feedback)
+    // !correct → user saw incorrect feedback inside the sheet; nothing to do
+    // correct → user saw correct feedback inside the sheet; just cache it
     if (result == null || !result.correct || !mounted) return;
 
-    // Correct — cache the session and navigate to the result screen.
     final session = ref.read(sessionProvider(widget.course.id)).valueOrNull;
     if (session != null) {
-      await ref
+      // Fire-and-forget — no await, no navigation needed (result shown in sheet)
+      ref
           .read(completedSessionsProvider(widget.course.id).notifier)
           .addSession(session.id);
     }
-    if (!mounted) return;
-    context.push(
-      '/diagnosis-result/${widget.course.id}',
-      extra: result,
-    );
   }
 
   @override
