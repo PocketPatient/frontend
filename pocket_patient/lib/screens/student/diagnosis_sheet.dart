@@ -79,14 +79,20 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    debugPrint('=== DX: _submit called ===');
+    if (!_formKey.currentState!.validate()) {
+      debugPrint('=== DX: form invalid ===');
+      return;
+    }
 
     setState(() {
       _sheetState = _SheetState.submitting;
       _errorText = null;
     });
+    debugPrint('=== DX: state -> submitting ===');
 
     try {
+      debugPrint('=== DX: calling API ===');
       final result = await ref
           .read(sessionProvider(widget.courseId).notifier)
           .submitDiagnosis(
@@ -95,6 +101,7 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
             _justificationCtrl.text.trim(),
           );
 
+      debugPrint('=== DX: got result correct=${result.correct} mounted=$mounted ===');
       if (!mounted) return;
 
       setState(() {
@@ -102,19 +109,30 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
         _sheetState =
             result.correct ? _SheetState.correct : _SheetState.incorrect;
       });
+      debugPrint('=== DX: state -> ${_sheetState.name} ===');
     } on DioException catch (e) {
+      debugPrint('=== DX: DioException status=${e.response?.statusCode} type=${e.type} mounted=$mounted ===');
       if (!mounted) return;
       final status = e.response?.statusCode;
       if (status == 404) {
-        ref.invalidate(sessionProvider(widget.courseId));
-        Navigator.of(context).pop(null);
+        // 404 means the server matched no diagnose route/session for this user.
+        // With a valid active session this should never happen, so surface it
+        // instead of silently closing the sheet (a silent pop made the failure
+        // look like the panel "instantly dismissing" on submit).
+        debugPrint('=== DX: 404 body=${e.response?.data} ===');
+        setState(() {
+          _errorText =
+              'Submission failed (404): the case could not be found on the server.';
+          _sheetState = _SheetState.form;
+        });
         return;
       }
       setState(() {
         _errorText = _extractDetail(e) ?? 'Submission failed. Please try again.';
         _sheetState = _SheetState.form;
       });
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('=== DX: unexpected error: $e\n$st ===');
       if (!mounted) return;
       setState(() {
         _errorText = 'An unexpected error occurred.';
@@ -144,7 +162,10 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
     return null;
   }
 
-  void _dismiss() => Navigator.of(context).pop(_result);
+  void _dismiss() {
+    debugPrint('=== DX: _dismiss called, result=${_result?.correct} ===');
+    Navigator.of(context).pop(_result);
+  }
 
   @override
   Widget build(BuildContext context) {

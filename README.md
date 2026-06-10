@@ -130,10 +130,19 @@ docker compose up -d
 
 ```powershell
 cd ..\backend
-.venv\Scripts\activate       # Windows
-# source .venv/bin/activate  # Mac/Linux
-uvicorn app.main:app --reload --port 8000
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload   # Windows
+# .venv/bin/python -m uvicorn app.main:app --reload          # Mac/Linux
 ```
+
+> **Windows with Conda/Miniconda:** Do **not** use `uv run uvicorn` or bare `uvicorn` on Windows when
+> Conda is your base Python. Those commands invoke the `.exe` wrapper which hard-codes the Conda
+> interpreter, causing the server to load stale cached modules instead of the current source tree.
+> Always use `.venv\Scripts\python.exe -m uvicorn` so the venv's own interpreter is used and CWD is
+> on `sys.path`.
+>
+> **OneDrive + `--reload` (Windows):** If your project lives in an OneDrive-synced folder, uvicorn's
+> file watcher may miss changes. Kill and restart the server after editing backend code rather than
+> relying on hot-reload.
 
 Health check: open `http://localhost:8000/health` in a browser — should return `{"status":"ok"}`.
 
@@ -338,3 +347,16 @@ flutter test
 
 **Test account sign-in fails with "invalid email domain"**
 → `allow_test_accounts=true` is not set in the backend `.env`, or the backend wasn't restarted after setting it.
+
+**Backend endpoints missing from `/docs` after restart / diagnosis or other routes return `404 Not Found`**
+→ The server started with the wrong Python interpreter. On Windows with Conda, `uv run uvicorn` and
+bare `uvicorn` both invoke the Conda base interpreter (via the `.exe` wrapper), which doesn't resolve
+the local `app/` package from the project directory — it loads stale cached modules instead. Fix: kill
+the server, then restart with:
+```powershell
+cd ..\backend
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+If the correct endpoint still doesn't appear in `/docs` after restarting, clear Python bytecache
+(`Get-ChildItem -Recurse __pycache__ | Remove-Item -Recurse -Force`) and restart once more. This is a
+one-time environment issue; it does not affect the deployed API.
