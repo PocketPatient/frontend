@@ -5,6 +5,7 @@ import '../models/course.dart';
 import '../providers/auth_provider.dart';
 import '../providers/completed_sessions_provider.dart';
 import '../providers/courses_provider.dart';
+import '../providers/session_provider.dart';
 import '../providers/units_provider.dart';
 import '../widgets/offline_banner.dart';
 
@@ -200,6 +201,8 @@ class _CourseCard extends ConsumerWidget {
         ? 0
         : (ref.watch(completedSessionsProvider(course.id)).valueOrNull ?? [])
             .length;
+    final hasActiveCase = !isProfessor &&
+        ref.watch(sessionProvider(course.id)).valueOrNull?.isActive == true;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -281,13 +284,20 @@ class _CourseCard extends ConsumerWidget {
                     color: releasedCount > 0 ? Colors.green : Colors.grey,
                   ),
                   const SizedBox(width: 8),
-                  _InfoChip(
-                    icon: Icons.check_circle_outline,
-                    label: completedCount == 0
-                        ? 'No cases done'
-                        : '$completedCount completed',
-                    color: completedCount > 0 ? Colors.blue : Colors.grey,
-                  ),
+                  if (hasActiveCase)
+                    const _InfoChip(
+                      icon: Icons.chat_bubble_outline,
+                      label: 'Case in progress',
+                      color: Colors.orange,
+                    )
+                  else
+                    _InfoChip(
+                      icon: Icons.check_circle_outline,
+                      label: completedCount == 0
+                          ? 'No cases done'
+                          : '$completedCount completed',
+                      color: completedCount > 0 ? Colors.blue : Colors.grey,
+                    ),
                 ],
               ],
             ),
@@ -295,9 +305,11 @@ class _CourseCard extends ConsumerWidget {
           if (!isProfessor) ...[
             const SizedBox(height: 10),
             Text(
-              releasedCount == 0
-                  ? 'Your virtual patient will reach out when a unit is released.'
-                  : 'A virtual patient may reach out during the messaging window.',
+              hasActiveCase
+                  ? 'Case in progress — tap to continue.'
+                  : releasedCount == 0
+                      ? 'No active units — check back later.'
+                      : 'Your patient will reach out soon.',
               style: TextStyle(
                   color: Colors.grey[500],
                   fontSize: 12,

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import '../../models/course.dart';
 import '../../models/diagnosis_result.dart';
 import '../../providers/completed_sessions_provider.dart';
 import '../../providers/session_provider.dart';
+import '../../providers/units_provider.dart';
 import 'diagnosis_sheet.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -49,7 +51,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  Future<void> _send() async {
+  Future<void> _send({bool instant = false}) async {
     final text = _inputCtrl.text.trim();
     if (text.isEmpty) return;
 
@@ -65,7 +67,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     try {
       await ref
           .read(sessionProvider(widget.course.id).notifier)
-          .sendMessage(text);
+          .sendMessage(text, instant: instant);
       if (!mounted) return;
       setState(() {
         _pendingContent = null;
@@ -98,13 +100,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (!mounted) return;
       setState(() => _sendError = true);
     }
-  }
-
-  Future<void> _startNewSession() async {
-    await ref
-        .read(sessionProvider(widget.course.id).notifier)
-        .startNewSession();
-    _scrollToBottom(animated: false);
   }
 
   Future<void> _refresh() async {
@@ -186,10 +181,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onRetry: () =>
                   ref.invalidate(sessionProvider(widget.course.id))),
           data: (session) => session == null
-              ? _NoSessionState(
-                  onStart: _startNewSession,
-                  courseTitle: widget.course.title,
-                )
+              ? _NoSessionState(courseId: widget.course.id)
               : _ChatBody(
                   session: session,
                   scrollCtrl: _scrollCtrl,
@@ -198,6 +190,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   pendingContent: _pendingContent,
                   sendError: _sendError,
                   onSend: _send,
+                  onSendInstant:
+                      kDebugMode ? () => _send(instant: true) : null,
                   onRetry: _retry,
                   onRefresh: _refresh,
                   onDiagnose: session.isActive
@@ -314,6 +308,7 @@ class _ChatBody extends StatelessWidget {
   final String? pendingContent;
   final bool sendError;
   final VoidCallback onSend;
+  final VoidCallback? onSendInstant;
   final VoidCallback onRetry;
   final Future<void> Function() onRefresh;
   final Future<void> Function()? onDiagnose;
@@ -327,6 +322,7 @@ class _ChatBody extends StatelessWidget {
     required this.pendingContent,
     required this.sendError,
     required this.onSend,
+    this.onSendInstant,
     required this.onRetry,
     required this.onRefresh,
     this.onDiagnose,
@@ -404,6 +400,7 @@ class _ChatBody extends StatelessWidget {
             focusNode: focusNode,
             enabled: session.isActive && pendingContent == null,
             onSend: onSend,
+            onSendInstant: onSendInstant,
           ),
       ],
     );
@@ -484,88 +481,93 @@ class _DiagnosedBar extends StatelessWidget {
 // Empty / error states
 // ---------------------------------------------------------------------------
 
-class _NoSessionState extends StatefulWidget {
-  final Future<void> Function() onStart;
-  final String courseTitle;
+class _NoSessionState extends ConsumerStatefulWidget {
+  final String courseId;
 
-  const _NoSessionState(
-      {required this.onStart, required this.courseTitle});
+  const _NoSessionState({required this.courseId});
 
   @override
-  State<_NoSessionState> createState() => _NoSessionStateState();
+  ConsumerState<_NoSessionState> createState() => _NoSessionStateState();
 }
 
-class _NoSessionStateState extends State<_NoSessionState> {
-  bool _loading = false;
+class _NoSessionStateState extends ConsumerState<_NoSessionState> {
+  bool _checking = false;
+
+  Future<void> _checkForCase() async {
+    setState(() => _checking = true);
+    ref.invalidate(sessionProvider(widget.courseId));
+    try {
+      await ref.read(sessionProvider(widget.courseId).future);
+    } catch (_) {
+      // Provider error state (if any) will surface via rebuild.
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.chat_bubble_outline,
+    final hasReleasedUnits =
+        (ref.watch(unitsProvider(widget.courseId)).valueOrNull ?? [])
+            .isNotEmpty;
+
+    return RefreshIndicator(
+      onRefresh: _checkForCase,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 80),
+        children: [
+          Center(
+            child: Icon(Icons.chat_bubble_outline,
                 size: 64, color: Colors.grey[300]),
-            const SizedBox(height: 20),
-            Text(
-              'No active case',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Your virtual patient will reach out when a case is assigned.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[500], fontSize: 14),
-            ),
-            const SizedBox(height: 32),
-            // Dev / testing button
-            OutlinedButton.icon(
-              onPressed: _loading
-                  ? null
-                  : () async {
-                      setState(() => _loading = true);
-                      try {
-                        await widget.onStart();
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text(
-                                    'Could not start case: $e')),
-                          );
-                        }
-                      } finally {
-                        if (mounted) setState(() => _loading = false);
-                      }
-                    },
-              icon: _loading
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'No active case',
+            textAlign: TextAlign.center,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            hasReleasedUnits
+                ? 'Your virtual patient will reach out during the messaging window.'
+                : 'No active units — check back later.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[500], fontSize: 14),
+          ),
+          const SizedBox(height: 32),
+          Center(
+            child: OutlinedButton.icon(
+              onPressed: _checking ? null : _checkForCase,
+              icon: _checking
                   ? const SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.play_arrow_outlined),
-              label: const Text('Start New Case'),
+                  : const Icon(Icons.refresh),
+              label: const Text('Check for new case'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 20, vertical: 12),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Dev/testing only — cases will be auto-assigned in production.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 11,
-                  fontStyle: FontStyle.italic),
+          ),
+          if (kDebugMode) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: TextButton.icon(
+                onPressed: () => ref
+                    .read(sessionProvider(widget.courseId).notifier)
+                    .startNewSession(),
+                icon: const Icon(Icons.bug_report_outlined, size: 16),
+                label: const Text('Dev: force-create new case'),
+              ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -821,12 +823,14 @@ class _InputBar extends StatelessWidget {
   final FocusNode focusNode;
   final bool enabled;
   final VoidCallback onSend;
+  final VoidCallback? onSendInstant;
 
   const _InputBar({
     required this.controller,
     required this.focusNode,
     required this.enabled,
     required this.onSend,
+    this.onSendInstant,
   });
 
   @override
@@ -879,6 +883,21 @@ class _InputBar extends StatelessWidget {
                 ),
               ),
             ),
+            if (onSendInstant != null) ...[
+              const SizedBox(width: 8),
+              FloatingActionButton.small(
+                heroTag: 'chat_send_instant',
+                onPressed: enabled ? onSendInstant : null,
+                backgroundColor: enabled
+                    ? Colors.amber[700]
+                    : Colors.grey[300],
+                foregroundColor:
+                    enabled ? Colors.white : Colors.grey[500],
+                elevation: enabled ? 2 : 0,
+                tooltip: 'Dev: instant reply (~10s)',
+                child: const Icon(Icons.bolt),
+              ),
+            ],
             const SizedBox(width: 8),
             FloatingActionButton.small(
               heroTag: 'chat_send',

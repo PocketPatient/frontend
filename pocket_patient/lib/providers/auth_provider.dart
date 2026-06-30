@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -47,7 +50,9 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     final hasToken = await ref.read(authServiceProvider).hasToken();
     if (!hasToken) return null;
     try {
-      return await ref.read(apiServiceProvider).getMe();
+      final user = await ref.read(apiServiceProvider).getMe();
+      unawaited(_registerFcmToken());
+      return user;
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         await ref.read(authServiceProvider).clearAll();
@@ -174,7 +179,22 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     // Persist the user ID so the refresh interceptor can detect cross-account
     // token mixing (e.g. access token for user A, refresh token for user B).
     await ref.read(authServiceProvider).writeUserId(user.id);
+    unawaited(_registerFcmToken());
     return user;
+  }
+
+  /// Sends the device's current FCM token to the backend. Called after
+  /// login/restore in case the app's startup registration (in
+  /// [NotificationService]) ran before the user was authenticated.
+  Future<void> _registerFcmToken() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        await ref.read(apiServiceProvider).updateFcmToken(token);
+      }
+    } catch (_) {
+      // Best-effort — retried on next app start or token refresh.
+    }
   }
 }
 
@@ -229,9 +249,16 @@ class RouterNotifier extends ChangeNotifier {
   }
 }
 
+/// Shared with [NotificationService] so it can navigate the app from
+/// background/terminated notification taps, which happen outside the
+/// widget tree.
+final navigatorKeyProvider =
+    Provider<GlobalKey<NavigatorState>>((ref) => GlobalKey<NavigatorState>());
+
 final goRouterProvider = Provider<GoRouter>((ref) {
   final notifier = ref.watch(routerNotifierProvider);
   return GoRouter(
+    navigatorKey: ref.watch(navigatorKeyProvider),
     initialLocation: '/login',
     refreshListenable: notifier,
     redirect: notifier.redirect,

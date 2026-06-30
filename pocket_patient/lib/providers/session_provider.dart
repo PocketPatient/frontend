@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_session.dart';
 import '../models/diagnosis_result.dart';
@@ -35,12 +36,13 @@ class SessionNotifier extends FamilyAsyncNotifier<ChatSession?, String> {
   /// Sends [content] to the backend (202 response returns the student's own
   /// message). Appends only the student message to local state — the patient
   /// reply arrives asynchronously and becomes visible after [refresh].
-  Future<void> sendMessage(String content) async {
+  Future<void> sendMessage(String content, {bool instant = false}) async {
     final session = state.valueOrNull;
     if (session == null) throw StateError('No active session');
 
-    final studentMsg =
-        await ref.read(apiServiceProvider).sendMessage(session.id, content);
+    final studentMsg = await ref
+        .read(apiServiceProvider)
+        .sendMessage(session.id, content, instant: instant);
 
     // Re-read state after the await in case it changed while the request was
     // in-flight (e.g. a concurrent refresh completed).  Merge rather than
@@ -66,6 +68,8 @@ class SessionNotifier extends FamilyAsyncNotifier<ChatSession?, String> {
   ) async {
     final session = state.valueOrNull;
     if (session == null) throw StateError('No active session');
+
+    debugPrint('=== DX NOTIFIER: courseId=$_courseId sessionId=${session.id} status=${session.status} ===');
 
     final result = await ref.read(apiServiceProvider).submitDiagnosis(
           session.id,

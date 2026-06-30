@@ -43,6 +43,12 @@ class ApiService {
     return AppUser.fromJson(resp.data as Map<String, dynamic>);
   }
 
+  Future<AppUser> updateFcmToken(String token) async {
+    final resp =
+        await _dio.put('/users/me/fcm-token', data: {'fcm_token': token});
+    return AppUser.fromJson(resp.data as Map<String, dynamic>);
+  }
+
   // -------------------------------------------------------------------------
   // Courses
   // -------------------------------------------------------------------------
@@ -60,6 +66,11 @@ class ApiService {
       'title': title,
       'semester': semester.isEmpty ? null : semester,
     });
+    return Course.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<Course> getCourse(String courseId) async {
+    final resp = await _dio.get('/courses/$courseId');
     return Course.fromJson(resp.data as Map<String, dynamic>);
   }
 
@@ -149,10 +160,14 @@ class ApiService {
     return ChatSession.fromJson(resp.data as Map<String, dynamic>);
   }
 
-  Future<ChatMessage> sendMessage(String sessionId, String content) async {
+  /// [instant] skips the persona's reply-delay scheduling so the patient
+  /// responds immediately — used by the debug "instant reply" button.
+  Future<ChatMessage> sendMessage(String sessionId, String content,
+      {bool instant = false}) async {
     final resp = await _dio.post(
       '/sessions/$sessionId/messages',
       data: {'content': content},
+      queryParameters: instant ? {'instant': true} : null,
     );
     return ChatMessage.fromJson(resp.data as Map<String, dynamic>);
   }
@@ -204,6 +219,7 @@ class ApiService {
 class _AuthInterceptor extends Interceptor {
   final AuthService _authService;
   final Dio _dio;
+  Future<AuthResponse>? _refreshFuture;
 
   _AuthInterceptor(this._authService, this._dio);
 
@@ -227,44 +243,68 @@ class _AuthInterceptor extends Interceptor {
     if (err.response?.statusCode == 401) {
       debugPrint(
           '=== DX REFRESH: 401 on path=${err.requestOptions.path}, attempting refresh ===');
-      final refreshToken = await _authService.readRefreshToken();
-      if (refreshToken == null) return handler.next(err);
       try {
-        // Use a fresh Dio with no interceptors to avoid infinite loops.
-        final refreshDio = Dio(BaseOptions(baseUrl: kApiBaseUrl));
-        final resp = await refreshDio.post(
-          '/auth/refresh',
-          data: {'refresh_token': refreshToken},
-        );
-        final auth = AuthResponse.fromJson(resp.data as Map<String, dynamic>);
-
-        // Cross-account guard: if the refreshed token belongs to a different
-        // user than the one who originally logged in, the credentials are
-        // mixed (e.g. access token for user A, refresh token for user B).
-        // Clear everything and let the router redirect to the login screen.
-        final storedUserId = await _authService.readUserId();
-        final refreshedUserId = _subFromJwt(auth.accessToken);
-        debugPrint(
-            '=== DX REFRESH: path=${err.requestOptions.path} storedUserId=$storedUserId refreshedSub=$refreshedUserId ===');
-        if (storedUserId != null &&
-            refreshedUserId != null &&
-            storedUserId != refreshedUserId) {
-          await _authService.clearAll();
-          return handler.next(err);
-        }
-
-        await _authService.writeToken(auth.accessToken);
-        await _authService.writeRefreshToken(auth.refreshToken);
+        final auth = await _refreshAccessToken();
         final opts = err.requestOptions;
         opts.headers['Authorization'] = 'Bearer ${auth.accessToken}';
         final retryResp = await _dio.fetch(opts);
         return handler.resolve(retryResp);
       } catch (_) {
-        await _authService.clearAll();
         return handler.next(err);
       }
     }
     handler.next(err);
+  }
+
+  /// Refreshes the access token, coalescing concurrent 401s into a single
+  /// `/auth/refresh` call.
+  ///
+  /// The backend's refresh token is single-use (Redis GETDEL). If several
+  /// requests 401 at once on a stale cached access token — as happens at app
+  /// startup — and each independently calls `/auth/refresh` with the same
+  /// refresh token, only the first succeeds; the rest get a 401 from
+  /// `/auth/refresh` itself and wipe the credentials the first call just
+  /// wrote. Sharing one in-flight refresh future avoids that race.
+  Future<AuthResponse> _refreshAccessToken() {
+    return _refreshFuture ??=
+        _doRefresh().whenComplete(() => _refreshFuture = null);
+  }
+
+  Future<AuthResponse> _doRefresh() async {
+    final refreshToken = await _authService.readRefreshToken();
+    if (refreshToken == null) {
+      throw StateError('No refresh token stored');
+    }
+    try {
+      // Use a fresh Dio with no interceptors to avoid infinite loops.
+      final refreshDio = Dio(BaseOptions(baseUrl: kApiBaseUrl));
+      final resp = await refreshDio.post(
+        '/auth/refresh',
+        data: {'refresh_token': refreshToken},
+      );
+      final auth = AuthResponse.fromJson(resp.data as Map<String, dynamic>);
+
+      // Cross-account guard: if the refreshed token belongs to a different
+      // user than the one who originally logged in, the credentials are
+      // mixed (e.g. access token for user A, refresh token for user B).
+      // Clear everything and let the router redirect to the login screen.
+      final storedUserId = await _authService.readUserId();
+      final refreshedUserId = _subFromJwt(auth.accessToken);
+      debugPrint(
+          '=== DX REFRESH: storedUserId=$storedUserId refreshedSub=$refreshedUserId ===');
+      if (storedUserId != null &&
+          refreshedUserId != null &&
+          storedUserId != refreshedUserId) {
+        throw StateError('Refreshed token belongs to a different user');
+      }
+
+      await _authService.writeToken(auth.accessToken);
+      await _authService.writeRefreshToken(auth.refreshToken);
+      return auth;
+    } catch (_) {
+      await _authService.clearAll();
+      rethrow;
+    }
   }
 
   /// Decodes the JWT payload (without verifying the signature) and returns
