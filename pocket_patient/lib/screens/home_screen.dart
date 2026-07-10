@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../models/chat_session.dart';
 import '../models/course.dart';
 import '../providers/auth_provider.dart';
 import '../providers/completed_sessions_provider.dart';
@@ -201,8 +202,11 @@ class _CourseCard extends ConsumerWidget {
         ? 0
         : (ref.watch(completedSessionsProvider(course.id)).valueOrNull ?? [])
             .length;
-    final hasActiveCase = !isProfessor &&
-        ref.watch(sessionProvider(course.id)).valueOrNull?.isActive == true;
+    final session = isProfessor
+        ? null
+        : ref.watch(sessionProvider(course.id)).valueOrNull;
+    final hasActiveCase = session?.isActive == true;
+    final waitLevel = session?.waitLevel ?? WaitLevel.none;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -284,13 +288,17 @@ class _CourseCard extends ConsumerWidget {
                     color: releasedCount > 0 ? Colors.green : Colors.grey,
                   ),
                   const SizedBox(width: 8),
-                  if (hasActiveCase)
+                  if (hasActiveCase) ...[
                     const _InfoChip(
                       icon: Icons.chat_bubble_outline,
                       label: 'Case in progress',
                       color: Colors.orange,
-                    )
-                  else
+                    ),
+                    if (waitLevel != WaitLevel.none) ...[
+                      const SizedBox(width: 8),
+                      _WaitDot(level: waitLevel),
+                    ],
+                  ] else
                     _InfoChip(
                       icon: Icons.check_circle_outline,
                       label: completedCount == 0
@@ -306,19 +314,58 @@ class _CourseCard extends ConsumerWidget {
             const SizedBox(height: 10),
             Text(
               hasActiveCase
-                  ? 'Case in progress — tap to continue.'
+                  ? (waitLevel == WaitLevel.red
+                      ? 'Your patient is waiting.'
+                      : 'Case in progress — tap to continue.')
                   : releasedCount == 0
                       ? 'No active units — check back later.'
                       : 'Your patient will reach out soon.',
               style: TextStyle(
-                  color: Colors.grey[500],
+                  color: waitLevel == WaitLevel.red
+                      ? Colors.red[700]
+                      : Colors.grey[500],
                   fontSize: 12,
+                  fontWeight: waitLevel == WaitLevel.red
+                      ? FontWeight.w600
+                      : FontWeight.normal,
                   fontStyle: FontStyle.italic),
             ),
           ],
           ],
         ),
         ),
+      ),
+    );
+  }
+}
+
+/// Response-time awareness dot (Week 10). Amber ≥12h, orange ≥24h, red ≥48h
+/// since the patient's last message went unanswered.
+class _WaitDot extends StatelessWidget {
+  final WaitLevel level;
+
+  const _WaitDot({required this.level});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (level) {
+      WaitLevel.amber => Colors.amber[700]!,
+      WaitLevel.orange => Colors.orange[800]!,
+      WaitLevel.red => Colors.red[700]!,
+      WaitLevel.none => Colors.transparent,
+    };
+    final label = switch (level) {
+      WaitLevel.amber => 'Waiting 12h+',
+      WaitLevel.orange => 'Waiting 24h+',
+      WaitLevel.red => 'Waiting 48h+',
+      WaitLevel.none => '',
+    };
+    return Semantics(
+      label: label,
+      child: Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
     );
   }

@@ -2,6 +2,10 @@ import 'diagnosis_result.dart';
 
 enum MessageRole { student, patient, system }
 
+/// How long the patient has been waiting on a student reply, bucketed into the
+/// thresholds surfaced as response-time dots on the home screen (Week 10).
+enum WaitLevel { none, amber, orange, red }
+
 class ChatMessage {
   final String id;
   final MessageRole role;
@@ -62,6 +66,33 @@ class ChatSession {
 
   bool get isActive => status == 'active';
   bool get isDiagnosed => status == 'diagnosed';
+
+  /// How long the patient has been waiting on the student, or null when the
+  /// ball isn't in the student's court: no active case, no messages, or the
+  /// student sent the most recent message. System/nudge messages count as the
+  /// patient waiting (see [ChatMessage.isPatient]).
+  ///
+  /// Computed against the most recent message by `sentAt` rather than list
+  /// position, so it's correct regardless of how [messages] is ordered.
+  Duration? get studentSilence {
+    if (!isActive || messages.isEmpty) return null;
+    final mostRecent =
+        messages.reduce((a, b) => a.sentAt.isAfter(b.sentAt) ? a : b);
+    if (!mostRecent.isPatient) return null;
+    return DateTime.now().difference(mostRecent.sentAt);
+  }
+
+  /// Response-time bucket for the home-screen dot. Evaluated at build time, so
+  /// it refreshes on interaction (pull-to-refresh / provider invalidation)
+  /// rather than ticking live.
+  WaitLevel get waitLevel {
+    final silence = studentSilence;
+    if (silence == null) return WaitLevel.none;
+    if (silence >= const Duration(hours: 48)) return WaitLevel.red;
+    if (silence >= const Duration(hours: 24)) return WaitLevel.orange;
+    if (silence >= const Duration(hours: 12)) return WaitLevel.amber;
+    return WaitLevel.none;
+  }
 
   ChatSession copyWith({
     List<ChatMessage>? messages,
