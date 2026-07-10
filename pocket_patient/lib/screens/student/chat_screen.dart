@@ -29,6 +29,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _sendError = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Week 10: always fetch latest on load rather than relying on whatever
+    // the provider last cached (e.g. from home screen) — a reply could have
+    // arrived since. Deferred to post-frame so the provider's initial build
+    // (and thus a session to refresh) has resolved first.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+  }
+
+  @override
   void dispose() {
     _scrollCtrl.dispose();
     _inputCtrl.dispose();

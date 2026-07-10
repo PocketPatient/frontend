@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
+import '../providers/session_provider.dart';
 
 /// Top-level background message handler, required by firebase_messaging.
 ///
@@ -86,6 +89,14 @@ class NotificationService {
   /// Foreground: app is open, so FCM does not show a system notification.
   /// Show an in-app banner instead.
   void _handleForegroundMessage(RemoteMessage message) {
+    // The chat screen has no polling — a patient reply that lands while the
+    // user is already looking at it would otherwise only appear after a
+    // manual pull-to-refresh. Refresh the session in the background so it
+    // shows up immediately, independent of whether the banner below is seen.
+    if (message.data['type'] == 'new_message') {
+      unawaited(_refreshSessionFor(message.data['session_id']));
+    }
+
     final notification = message.notification;
     final context = navigatorKey.currentContext;
     if (notification == null || context == null) return;
@@ -104,6 +115,19 @@ class NotificationService {
         duration: const Duration(seconds: 4),
       ),
     );
+  }
+
+  /// Looks up the session's course and refreshes its [sessionProvider] so a
+  /// patient reply that arrived via push is pulled into state without
+  /// requiring a manual pull-to-refresh. Best-effort — silently gives up if
+  /// the session is no longer reachable (e.g. case closed).
+  Future<void> _refreshSessionFor(String? sessionId) async {
+    if (sessionId == null) return;
+    try {
+      final api = container.read(apiServiceProvider);
+      final session = await api.getSession(sessionId);
+      await container.read(sessionProvider(session.courseId).notifier).refresh();
+    } catch (_) {}
   }
 
   /// Background tap or terminated launch: route based on the `data` payload.

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dev-only: allows plaintext HTTP to the local backend reached via the
+     Android emulator's host-loopback alias (kApiBaseUrl in constants.dart). -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
