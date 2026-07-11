@@ -11,6 +11,7 @@ import '../../models/enrolled_student.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/class_summary_provider.dart';
 import '../../providers/courses_provider.dart';
+import '../../widgets/dashboard_animations.dart';
 
 const _scarlet = Color(0xFFCC0033);
 
@@ -202,6 +203,19 @@ class _ClassAnalyticsBodyState extends ConsumerState<_ClassAnalyticsBody> {
             );
           }
 
+          final cards = [
+            _ClassOverviewStats(summary: summary),
+            _ScoreDistributionCard(summary: summary),
+            _UnitCompletionCard(summary: summary),
+            _CategoryHeatmapCard(
+              summary: summary,
+              courseId: widget.courseId,
+              onRowTap: _openDrilldown,
+            ),
+            if (summary.flaggedStudents.isNotEmpty)
+              _FlaggedStudentsCard(summary: summary, onTap: _openDrilldown),
+          ];
+
           return ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -218,20 +232,9 @@ class _ClassAnalyticsBodyState extends ConsumerState<_ClassAnalyticsBody> {
                 ),
               ),
               const SizedBox(height: 16),
-              _ClassOverviewStats(summary: summary),
-              const SizedBox(height: 16),
-              _ScoreDistributionCard(summary: summary),
-              const SizedBox(height: 16),
-              _UnitCompletionCard(summary: summary),
-              const SizedBox(height: 16),
-              _CategoryHeatmapCard(
-                summary: summary,
-                courseId: widget.courseId,
-                onRowTap: _openDrilldown,
-              ),
-              if (summary.flaggedStudents.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _FlaggedStudentsCard(summary: summary, onTap: _openDrilldown),
+              for (var i = 0; i < cards.length; i++) ...[
+                if (i > 0) const SizedBox(height: 16),
+                FadeSlideIn(index: i, child: cards[i]),
               ],
             ],
           );
@@ -270,22 +273,26 @@ class _ClassOverviewStats extends StatelessWidget {
       children: [
         _StatTile(
           label: 'Enrolled students',
-          value: '${summary.enrolledStudents}',
+          numericValue: summary.enrolledStudents.toDouble(),
+          format: (v) => '${v.round()}',
           icon: Icons.people_outline,
         ),
         _StatTile(
           label: 'Average score',
-          value: summary.avgClassScore != null ? '${summary.avgClassScore!.round()}%' : '—',
+          numericValue: summary.avgClassScore,
+          format: (v) => '${v.round()}%',
           icon: Icons.grade_outlined,
         ),
         _StatTile(
           label: 'Completion rate',
-          value: rate != null ? '${rate.round()}%' : '—',
+          numericValue: rate,
+          format: (v) => '${v.round()}%',
           icon: Icons.task_alt_outlined,
         ),
         _StatTile(
           label: 'Active right now',
-          value: '${summary.studentsWithActiveCase}',
+          numericValue: summary.studentsWithActiveCase.toDouble(),
+          format: (v) => '${v.round()}',
           icon: Icons.chat_bubble_outline,
         ),
       ],
@@ -295,10 +302,16 @@ class _ClassOverviewStats extends StatelessWidget {
 
 class _StatTile extends StatelessWidget {
   final String label;
-  final String value;
+  final double? numericValue;
+  final String Function(double) format;
   final IconData icon;
 
-  const _StatTile({required this.label, required this.value, required this.icon});
+  const _StatTile({
+    required this.label,
+    required this.numericValue,
+    required this.format,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -319,7 +332,14 @@ class _StatTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                numericValue != null
+                    ? AnimatedCountUp(
+                        value: numericValue!,
+                        format: format,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      )
+                    : const Text('—',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 Text(label,
                     style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                     maxLines: 1,
@@ -352,7 +372,7 @@ class _ScoreDistributionCard extends StatelessWidget {
     return _ChartCard(
       title: 'Score distribution',
       child: buckets.isEmpty
-          ? _EmptyChartMessage()
+          ? const _EmptyChartMessage()
           : Column(
               children: buckets.map((b) {
                 final frac = b.count / maxCount;
@@ -405,7 +425,7 @@ class _UnitCompletionCard extends StatelessWidget {
     return _ChartCard(
       title: 'Unit completion',
       child: summary.completionByUnit.isEmpty
-          ? _EmptyChartMessage()
+          ? const _EmptyChartMessage()
           : Column(
               children: summary.completionByUnit.map((u) {
                 final frac = u.totalCasesStarted == 0
@@ -488,7 +508,12 @@ class _CategoryHeatmapCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final heatmap = summary.categoryHeatmap;
     if (heatmap.students.isEmpty || heatmap.categories.isEmpty) {
-      return _ChartCard(title: 'Performance heatmap', child: _EmptyChartMessage());
+      return const _ChartCard(
+        title: 'Performance heatmap',
+        child: _EmptyChartMessage(
+          text: 'Analytics will appear once students begin diagnosing.',
+        ),
+      );
     }
 
     const cellSize = 56.0;
@@ -727,12 +752,18 @@ class _ChartCard extends StatelessWidget {
 }
 
 class _EmptyChartMessage extends StatelessWidget {
+  final String text;
+
+  const _EmptyChartMessage({this.text = 'Not enough data yet.'});
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 60,
       child: Center(
-        child: Text('Not enough data yet.', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+        child: Text(text,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[500], fontSize: 12)),
       ),
     );
   }

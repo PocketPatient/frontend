@@ -52,6 +52,22 @@ class ApiService {
     return AppUser.fromJson(resp.data as Map<String, dynamic>);
   }
 
+  /// Response is just {push_enabled, quiet_hours_start, quiet_hours_end}
+  /// (NotificationPreferences), not a full user — caller merges the values
+  /// it just sent into its own AppUser via copyWith rather than parsing this
+  /// as AppUser.fromJson.
+  Future<void> updateNotificationPreferences({
+    required bool pushEnabled,
+    String? quietHoursStart,
+    String? quietHoursEnd,
+  }) async {
+    await _dio.put('/users/me/notification-preferences', data: {
+      'push_enabled': pushEnabled,
+      'quiet_hours_start': quietHoursStart,
+      'quiet_hours_end': quietHoursEnd,
+    });
+  }
+
   // -------------------------------------------------------------------------
   // Courses
   // -------------------------------------------------------------------------

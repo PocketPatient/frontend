@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import '../models/student_summary.dart';
+import 'dashboard_animations.dart';
 
 const _scarlet = Color(0xFFCC0033);
 
@@ -23,7 +24,7 @@ class StudentSummaryCharts extends StatelessWidget {
             Icon(Icons.query_stats_rounded, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 16),
             Text(
-              'No completed cases yet.',
+              'Complete your first case to see your progress.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey[500], fontSize: 16),
             ),
@@ -32,15 +33,19 @@ class StudentSummaryCharts extends StatelessWidget {
       );
     }
 
+    final cards = [
+      _OverviewStats(summary: summary),
+      _ScoreTrendCard(summary: summary),
+      _CategoryRadarCard(summary: summary),
+      _ResponseTimeTrendCard(summary: summary),
+    ];
+
     return Column(
       children: [
-        _OverviewStats(summary: summary),
-        const SizedBox(height: 16),
-        _ScoreTrendCard(summary: summary),
-        const SizedBox(height: 16),
-        _CategoryRadarCard(summary: summary),
-        const SizedBox(height: 16),
-        _ResponseTimeTrendCard(summary: summary),
+        for (var i = 0; i < cards.length; i++) ...[
+          if (i > 0) const SizedBox(height: 16),
+          FadeSlideIn(index: i, child: cards[i]),
+        ],
       ],
     );
   }
@@ -57,10 +62,6 @@ class _OverviewStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avgResponseLabel = summary.avgResponseTimeSec != null
-        ? _formatDuration(summary.avgResponseTimeSec!)
-        : '—';
-
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -71,22 +72,26 @@ class _OverviewStats extends StatelessWidget {
       children: [
         _StatTile(
           label: 'Cases completed',
-          value: '${summary.completedCases}',
+          numericValue: summary.completedCases.toDouble(),
+          format: (v) => '${v.round()}',
           icon: Icons.check_circle_outline,
         ),
         _StatTile(
           label: 'Average score',
-          value: summary.avgScore != null ? '${summary.avgScore!.round()}%' : '—',
+          numericValue: summary.avgScore,
+          format: (v) => '${v.round()}%',
           icon: Icons.grade_outlined,
         ),
         _StatTile(
           label: 'Avg response time',
-          value: avgResponseLabel,
+          numericValue: summary.avgResponseTimeSec,
+          format: _formatDuration,
           icon: Icons.timer_outlined,
         ),
         _StatTile(
           label: 'Current streak',
-          value: '${summary.currentStreak}',
+          numericValue: summary.currentStreak.toDouble(),
+          format: (v) => '${v.round()}',
           icon: Icons.local_fire_department_outlined,
         ),
       ],
@@ -104,10 +109,16 @@ class _OverviewStats extends StatelessWidget {
 
 class _StatTile extends StatelessWidget {
   final String label;
-  final String value;
+  final double? numericValue;
+  final String Function(double) format;
   final IconData icon;
 
-  const _StatTile({required this.label, required this.value, required this.icon});
+  const _StatTile({
+    required this.label,
+    required this.numericValue,
+    required this.format,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -128,8 +139,14 @@ class _StatTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(value,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                numericValue != null
+                    ? AnimatedCountUp(
+                        value: numericValue!,
+                        format: format,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      )
+                    : const Text('—',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 Text(label,
                     style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                     maxLines: 1,

@@ -14,6 +14,7 @@ import '../models/user.dart';
 import '../screens/email_verification_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/notification_settings_screen.dart';
 import '../screens/professor/course_management_screen.dart';
 import '../screens/professor/create_course_screen.dart';
 import '../screens/professor/disease_upload_screen.dart';
@@ -164,6 +165,32 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     });
   }
 
+  /// PUT .../notification-preferences only returns the three preference
+  /// fields, not a full user, so state is updated via copyWith with what
+  /// was just sent rather than re-parsed from the response.
+  Future<void> updateNotificationPreferences({
+    required bool pushEnabled,
+    TimeOfDay? quietHoursStart,
+    TimeOfDay? quietHoursEnd,
+    bool clearQuietHours = false,
+  }) async {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    await ref.read(apiServiceProvider).updateNotificationPreferences(
+          pushEnabled: pushEnabled,
+          quietHoursStart:
+              clearQuietHours || quietHoursStart == null ? null : formatTimeOfDayForApi(quietHoursStart),
+          quietHoursEnd:
+              clearQuietHours || quietHoursEnd == null ? null : formatTimeOfDayForApi(quietHoursEnd),
+        );
+    state = AsyncData(current.copyWith(
+      pushEnabled: pushEnabled,
+      quietHoursStart: quietHoursStart,
+      quietHoursEnd: quietHoursEnd,
+      clearQuietHours: clearQuietHours,
+    ));
+  }
+
   Future<void> signOut() async {
     await ref.read(authServiceProvider).clearAll();
     await FirebaseAuth.instance.signOut();
@@ -277,6 +304,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           path: '/role-selection',
           builder: (_, __) => const RoleSelectionScreen()),
       GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
+      GoRoute(
+          path: '/notification-settings',
+          builder: (_, __) => const NotificationSettingsScreen()),
       GoRoute(path: '/enroll', builder: (_, __) => const EnrollScreen()),
       GoRoute(
           path: '/create-course',
