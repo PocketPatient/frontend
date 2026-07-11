@@ -87,19 +87,44 @@ class SessionNotifier extends FamilyAsyncNotifier<ChatSession?, String> {
     return result;
   }
 
-  /// Re-fetches the session from the API (used for pull-to-refresh to pick up
-  /// async patient replies and status changes).
+  /// Re-checks for the course's active session (used for pull-to-refresh to
+  /// pick up async patient replies, status changes, and — critically — the
+  /// *next* case once the current one is diagnosed).
+  ///
+  /// Re-derives from [getActiveSession] rather than re-fetching the last
+  /// known session by id: once a session is diagnosed it still exists and
+  /// would keep round-tripping successfully forever, so refresh would never
+  /// notice a case is over and never let state fall back to null for
+  /// [_NoSessionState] to pick up the next one.
   ///
   /// Merges server messages with any locally-confirmed messages not yet present
   /// in the server response (e.g. a student message that was just sent but
-  /// hasn't propagated into the GET response yet).  This prevents confirmed
-  /// messages from vanishing during the round-trip.
+  /// hasn't propagated into the GET response yet). This prevents confirmed
+  /// messages from vanishing during the round-trip — only meaningful when the
+  /// refreshed session is the same one already in state.
   Future<void> refresh() async {
     final current = state.valueOrNull;
-    if (current == null) return;
     try {
-      final refreshed =
-          await ref.read(apiServiceProvider).getSession(current.id);
+      ChatSession? refreshed;
+      try {
+        refreshed = await ref.read(apiServiceProvider).getActiveSession(_courseId);
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 404) {
+          refreshed = null;
+        } else {
+          rethrow;
+        }
+      }
+
+      if (refreshed == null) {
+        state = const AsyncData(null);
+        return;
+      }
+
+      if (current == null || current.id != refreshed.id) {
+        state = AsyncData(refreshed);
+        return;
+      }
 
       final serverIds = {for (final m in refreshed.messages) m.id};
       final localOnly = current.messages
