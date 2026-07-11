@@ -51,6 +51,11 @@ class ChatSession {
   final List<ChatMessage> messages;
   final ScoreData? score;
   final RevealData? reveal;
+  // Patient identity for the case card (Week 11) — deliberately just name/age/
+  // gender/first-contact, no diagnosis hints.
+  final String patientName;
+  final int patientAge;
+  final String patientGender;
 
   const ChatSession({
     required this.id,
@@ -62,6 +67,9 @@ class ChatSession {
     required this.messages,
     this.score,
     this.reveal,
+    required this.patientName,
+    required this.patientAge,
+    required this.patientGender,
   });
 
   bool get isActive => status == 'active';
@@ -111,6 +119,9 @@ class ChatSession {
         messages: messages ?? this.messages,
         score: score ?? this.score,
         reveal: reveal ?? this.reveal,
+        patientName: patientName,
+        patientAge: patientAge,
+        patientGender: patientGender,
       );
 
   factory ChatSession.fromJson(Map<String, dynamic> json) => ChatSession(
@@ -131,5 +142,8 @@ class ChatSession {
         reveal: json['reveal'] != null
             ? RevealData.fromJson(json['reveal'] as Map<String, dynamic>)
             : null,
+        patientName: json['patient_name'] as String? ?? 'Unknown',
+        patientAge: json['patient_age'] as int? ?? 0,
+        patientGender: json['patient_gender'] as String? ?? 'unknown',
       );
 }

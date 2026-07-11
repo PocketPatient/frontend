@@ -20,6 +20,9 @@ ChatSession _session({
       turnCount: messages.length,
       startedAt: DateTime.now().subtract(const Duration(days: 3)),
       messages: messages,
+      patientName: 'Test Patient',
+      patientAge: 30,
+      patientGender: 'unknown',
     );
 
 void main() {

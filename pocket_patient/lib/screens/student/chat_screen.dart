@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/chat_session.dart';
 import '../../models/course.dart';
 import '../../models/diagnosis_result.dart';
@@ -24,9 +27,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _inputCtrl = TextEditingController();
   final _focusNode = FocusNode();
 
+  // Stable per-message keys so a specific bubble can be located (e.g. for
+  // scroll-to-unread) across rebuilds. The chat list is rendered eagerly
+  // (ListView(children: ...), not .builder), so every bubble always has a
+  // realized Element/context to scroll to.
+  final Map<String, GlobalKey> _bubbleKeys = {};
+
   // Optimistic / transient send state
   String? _pendingContent; // student message being sent right now
   bool _sendError = false;
+
+  String get _pendingMsgPrefsKey => 'pending_msg_${widget.course.id}';
+  String get _lastReadPrefsKey => 'last_read_${widget.course.id}';
 
   @override
   void initState() {
@@ -35,7 +47,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // the provider last cached (e.g. from home screen) — a reply could have
     // arrived since. Deferred to post-frame so the provider's initial build
     // (and thus a session to refresh) has resolved first.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _refresh();
+      if (!mounted) return;
+      await _scrollToUnreadOrBottom();
+      if (!mounted) return;
+      // Week 11: a message that was still in flight when the app crashed
+      // (or was killed) never got its optimistic state cleared — restore it
+      // and retry automatically now that the app is back open.
+      await _restorePendingMessage();
+    });
   }
 
   @override
@@ -73,6 +94,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _sendError = false;
     });
     _scrollToBottom();
+    // Persisted so a crash/kill mid-send can be recovered on next open —
+    // see _restorePendingMessage.
+    unawaited(_persistPendingMessage(text));
 
     try {
       await ref
@@ -84,6 +108,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _sendError = false;
       });
       _scrollToBottom();
+      unawaited(_clearPendingMessage());
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -106,10 +131,84 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _sendError = false;
       });
       _scrollToBottom();
+      unawaited(_clearPendingMessage());
     } catch (_) {
       if (!mounted) return;
       setState(() => _sendError = true);
     }
+  }
+
+  Future<void> _persistPendingMessage(String text) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pendingMsgPrefsKey, text);
+  }
+
+  Future<void> _clearPendingMessage() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_pendingMsgPrefsKey);
+  }
+
+  /// Restores a message that was still "sending" when the app was last
+  /// killed (e.g. crash mid-send) and retries it automatically.
+  Future<void> _restorePendingMessage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_pendingMsgPrefsKey);
+    if (saved == null || !mounted) return;
+    setState(() {
+      _pendingContent = saved;
+      _sendError = false;
+    });
+    await _retry();
+  }
+
+  /// On open, scrolls to the first unread patient message rather than
+  /// always jumping to the very bottom — useful for a case that's had
+  /// several replies land since the student last looked. Falls back to the
+  /// bottom if there's no read-position on record or nothing new.
+  Future<void> _scrollToUnreadOrBottom() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedMs = prefs.getInt(_lastReadPrefsKey);
+    final lastRead =
+        storedMs != null ? DateTime.fromMillisecondsSinceEpoch(storedMs) : null;
+
+    final messages =
+        ref.read(sessionProvider(widget.course.id)).valueOrNull?.messages ??
+            const [];
+    if (messages.isEmpty) return;
+
+    ChatMessage? firstUnread;
+    if (lastRead != null) {
+      for (final m in messages) {
+        if (m.isPatient && m.sentAt.isAfter(lastRead)) {
+          firstUnread = m;
+          break;
+        }
+      }
+    }
+
+    if (firstUnread != null) {
+      _scrollToBubble(firstUnread.id);
+    } else {
+      _scrollToBottom(animated: false);
+    }
+
+    await prefs.setInt(
+        _lastReadPrefsKey, messages.last.sentAt.millisecondsSinceEpoch);
+  }
+
+  void _scrollToBubble(String messageId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _bubbleKeys[messageId]?.currentContext;
+      if (ctx == null) {
+        _scrollToBottom(animated: false);
+        return;
+      }
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.1,
+        duration: const Duration(milliseconds: 300),
+      );
+    });
   }
 
   Future<void> _refresh() async {
@@ -194,6 +293,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ? _NoSessionState(courseId: widget.course.id)
               : _ChatBody(
                   session: session,
+                  bubbleKeys: _bubbleKeys,
                   scrollCtrl: _scrollCtrl,
                   inputCtrl: _inputCtrl,
                   focusNode: _focusNode,
@@ -323,9 +423,11 @@ class _ChatBody extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final Future<void> Function()? onDiagnose;
   final VoidCallback? onViewResults;
+  final Map<String, GlobalKey> bubbleKeys;
 
   const _ChatBody({
     required this.session,
+    required this.bubbleKeys,
     required this.scrollCtrl,
     required this.inputCtrl,
     required this.focusNode,
@@ -352,13 +454,33 @@ class _ChatBody extends StatelessWidget {
         confirmed.isNotEmpty &&
         !confirmed.last.isPatient;
 
-    int itemCount = confirmed.length;
-    if (showPending) itemCount++;
-    if (sendError) itemCount++;
-    if (showLastPatientAwaiting) itemCount++;
+    // Built eagerly (not ListView.builder) so every bubble has a realized
+    // context immediately — needed for scroll-to-unread (Scrollable.ensureVisible)
+    // and lets date separators be interleaved without index arithmetic.
+    final items = <Widget>[];
+    DateTime? lastDay;
+    for (final message in confirmed) {
+      final day =
+          DateTime(message.sentAt.year, message.sentAt.month, message.sentAt.day);
+      if (lastDay == null || day != lastDay) {
+        items.add(_DateSeparator(date: day));
+        lastDay = day;
+      }
+      items.add(_BubbleTile(
+        key: bubbleKeys.putIfAbsent(message.id, () => GlobalKey()),
+        message: message,
+      ));
+    }
+    if (showPending) items.add(_PendingBubble(content: pendingContent!));
+    if (sendError) items.add(_RetryRow(onRetry: onRetry));
+    if (showLastPatientAwaiting) items.add(const _AwaitingBubble());
 
     return Column(
       children: [
+        // Patient identity card — name/age/gender/first-contact only, no
+        // diagnosis hints (Week 11).
+        _PatientInfoCard(session: session),
+
         // Diagnosed banner
         if (isDiagnosed) _DiagnosedBanner(reveal: session.reveal),
 
@@ -367,34 +489,11 @@ class _ChatBody extends StatelessWidget {
           child: RefreshIndicator(
             onRefresh: onRefresh,
             color: const Color(0xFFCC0033),
-            child: ListView.builder(
+            child: ListView(
               controller: scrollCtrl,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
-              itemCount: itemCount,
-              itemBuilder: (context, index) {
-                if (index < confirmed.length) {
-                  return _BubbleTile(message: confirmed[index]);
-                }
-
-                int extra = index - confirmed.length;
-
-                if (showPending && extra == 0) {
-                  return _PendingBubble(content: pendingContent!);
-                }
-                if (showPending) extra--;
-
-                if (sendError && extra == 0) {
-                  return _RetryRow(onRetry: onRetry);
-                }
-                if (sendError) extra--;
-
-                if (showLastPatientAwaiting && extra == 0) {
-                  return const _AwaitingBubble();
-                }
-
-                return const SizedBox.shrink();
-              },
+              children: items,
             ),
           ),
         ),
@@ -413,6 +512,70 @@ class _ChatBody extends StatelessWidget {
             onSendInstant: onSendInstant,
           ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Patient info card
+// ---------------------------------------------------------------------------
+
+class _PatientInfoCard extends StatelessWidget {
+  final ChatSession session;
+
+  const _PatientInfoCard({required this.session});
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final started = session.startedAt;
+    final firstContact = '${_months[started.month - 1]} ${started.day}';
+    final genderLabel = session.patientGender.isEmpty
+        ? ''
+        : session.patientGender[0].toUpperCase() +
+            session.patientGender.substring(1);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: Colors.grey[200],
+            child: const Icon(Icons.person_outline, color: Colors.grey),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  session.patientName,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    '${session.patientAge} yo',
+                    if (genderLabel.isNotEmpty) genderLabel,
+                    'First contact: $firstContact',
+                  ].join(' • '),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -608,10 +771,49 @@ class _ErrorState extends StatelessWidget {
 // Message bubble widgets
 // ---------------------------------------------------------------------------
 
+class _DateSeparator extends StatelessWidget {
+  final DateTime date;
+
+  const _DateSeparator({required this.date});
+
+  static const _weekdays = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+  ];
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final label =
+        '${_weekdays[date.weekday - 1]}, ${_months[date.month - 1]} ${date.day}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BubbleTile extends StatelessWidget {
   final ChatMessage message;
 
-  const _BubbleTile({required this.message});
+  const _BubbleTile({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {

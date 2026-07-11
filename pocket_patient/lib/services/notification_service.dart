@@ -149,8 +149,14 @@ class NotificationService {
         context.push('/chat/${course.id}', extra: course);
         return;
       } catch (_) {
-        // Session/course no longer reachable (e.g. case closed) — fall
-        // through to home.
+        // Session/course no longer reachable (e.g. case closed). Tell the
+        // student rather than silently dropping them on home with no
+        // explanation — this is the tap-a-stale-notification path (Week 11).
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('This case has been closed.')),
+          );
+        }
       }
     }
 
