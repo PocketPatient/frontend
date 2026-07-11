@@ -16,6 +16,17 @@ class RoleSelectionScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: isLoading
+                      ? null
+                      : () => ref.read(authNotifierProvider.notifier).signOut(),
+                  icon: const Icon(Icons.logout, size: 18),
+                  label: const Text('Wrong account? Sign out'),
+                ),
+              ),
+              const SizedBox(height: 8),
               Text(
                 'Welcome!',
                 style: Theme.of(context)

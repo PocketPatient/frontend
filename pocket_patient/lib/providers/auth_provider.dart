@@ -272,12 +272,7 @@ class RouterNotifier extends ChangeNotifier {
         loc == '/verify-email') {
       return '/home';
     }
-    // Authenticated routes — allow through
-    if (loc == '/enroll' || loc == '/create-course') return null;
-    if (loc.startsWith('/course/')) return null;
-    if (loc.startsWith('/chat/')) return null;
-    if (loc.startsWith('/students/')) return null;
-    if (loc.startsWith('/diagnosis-result/')) return null;
+    // Any other authenticated route is allowed through as-is.
     return null;
   }
 }
