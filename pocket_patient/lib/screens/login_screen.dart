@@ -132,7 +132,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final isLoading = ref.watch(authNotifierProvider).isLoading;
-    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       body: SafeArea(
@@ -146,22 +145,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Container(
                   width: 100,
                   height: 100,
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(20),
+                  padding: const EdgeInsets.all(18),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFCC0033),
+                    borderRadius: BorderRadius.all(Radius.circular(20)),
                   ),
-                  child: Icon(Icons.local_hospital,
-                      size: 52, color: colorScheme.primary),
+                  child: Image.asset('assets/icon/icon_foreground.png'),
                 ),
               ),
               const SizedBox(height: 20),
-              Text(
+              const Text(
                 'Pocket Patient v2',
                 textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFCC0033),
+                ),
               ),
               const SizedBox(height: 6),
               Text(
