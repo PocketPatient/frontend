@@ -9,6 +9,7 @@ import '../providers/courses_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/units_provider.dart';
 import '../widgets/offline_banner.dart';
+import 'student/dashboard_tab.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -139,7 +140,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                 ),
               ),
-              const _AnalyticsPlaceholder(),
+              isProfessor
+                  ? const _AnalyticsPlaceholder()
+                  : const StudentDashboardTab(),
             ],
           ),
         ),
@@ -373,6 +376,10 @@ class _CourseCard extends ConsumerWidget {
                           ? 'No cases done'
                           : '$completedCount completed',
                       color: completedCount > 0 ? Colors.blue : Colors.grey,
+                      onTap: completedCount > 0
+                          ? () => context.push('/case-history/${course.id}',
+                              extra: course)
+                          : null,
                     ),
                 ],
               ],

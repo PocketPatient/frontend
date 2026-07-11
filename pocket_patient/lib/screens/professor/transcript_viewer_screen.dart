@@ -2,19 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/chat_session.dart';
 import '../../models/completed_session_item.dart';
-import '../../models/enrolled_student.dart';
 import '../../providers/auth_provider.dart';
 
-/// Read-only transcript view for professors (Week 12 Task 2) — same bubble
-/// layout as the student chat screen, but no input bar and a header showing
-/// case metadata instead of the patient-identity card.
+/// Read-only transcript view — same bubble layout as the student chat
+/// screen, but no input bar and a header showing case metadata instead of
+/// the patient-identity card. Shared by the professor's per-student browser
+/// (Week 12) and the student's own case history (Week 13) — [headerLabel]
+/// is the student's name for the former, "You" for the latter.
 class TranscriptViewerScreen extends ConsumerStatefulWidget {
-  final EnrolledStudent student;
+  final String appBarTitle;
+  final String headerLabel;
   final CompletedSessionItem sessionItem;
 
   const TranscriptViewerScreen({
     super.key,
-    required this.student,
+    required this.appBarTitle,
+    required this.headerLabel,
     required this.sessionItem,
   });
 
@@ -56,7 +59,7 @@ class _TranscriptViewerScreenState extends ConsumerState<TranscriptViewerScreen>
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text(widget.student.displayLabel),
+        title: Text(widget.appBarTitle),
         backgroundColor: const Color(0xFFCC0033),
         foregroundColor: Colors.white,
       ),
@@ -96,7 +99,7 @@ class _TranscriptViewerScreenState extends ConsumerState<TranscriptViewerScreen>
 
     return Column(
       children: [
-        _TranscriptHeader(student: widget.student, item: widget.sessionItem),
+        _TranscriptHeader(studentLabel: widget.headerLabel, item: widget.sessionItem),
         Expanded(
           child: items.isEmpty
               ? Center(
@@ -114,10 +117,10 @@ class _TranscriptViewerScreenState extends ConsumerState<TranscriptViewerScreen>
 }
 
 class _TranscriptHeader extends StatelessWidget {
-  final EnrolledStudent student;
+  final String studentLabel;
   final CompletedSessionItem item;
 
-  const _TranscriptHeader({required this.student, required this.item});
+  const _TranscriptHeader({required this.studentLabel, required this.item});
 
   static const _months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
@@ -154,7 +157,7 @@ class _TranscriptHeader extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             [
-              student.displayLabel,
+              studentLabel,
               _fmt(item.startedAt),
               _durationLabel,
               if (item.score != null) 'Score: ${item.score!.round()}%',

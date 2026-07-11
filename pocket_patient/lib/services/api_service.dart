@@ -8,6 +8,7 @@ import '../models/diagnosis_result.dart';
 import '../models/completed_session_item.dart';
 import '../models/disease_document_preview.dart';
 import '../models/enrolled_student.dart';
+import '../models/student_summary.dart';
 import '../models/unit.dart';
 import '../models/user.dart';
 import 'auth_service.dart';
@@ -205,6 +206,33 @@ class ApiService {
 
   Future<void> removeStudent(String courseId, String userId) async {
     await _dio.delete('/courses/$courseId/students/$userId');
+  }
+
+  // -------------------------------------------------------------------------
+  // Analytics
+  // -------------------------------------------------------------------------
+
+  Future<StudentSummary> getStudentSummary(String courseId) async {
+    final resp = await _dio.get('/analytics/student/summary',
+        queryParameters: {'course_id': courseId});
+    return StudentSummary.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  /// The caller's own completed cases for a course (Week 13 case history).
+  /// No student_id — the backend scopes GET /sessions to the caller when
+  /// they're a student, regardless of any student_id filter.
+  Future<PaginatedSessions> getMyCompletedSessions(
+    String courseId, {
+    int page = 1,
+    int pageSize = 50,
+  }) async {
+    final resp = await _dio.get('/sessions', queryParameters: {
+      'course_id': courseId,
+      'status': 'diagnosed',
+      'page': page,
+      'page_size': pageSize,
+    });
+    return PaginatedSessions.fromJson(resp.data as Map<String, dynamic>);
   }
 
   /// A student's sessions (active + completed) within a course, for the

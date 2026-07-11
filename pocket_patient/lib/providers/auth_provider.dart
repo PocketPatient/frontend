@@ -7,7 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../models/completed_session_item.dart';
 import '../models/diagnosis_result.dart';
+import '../models/enrolled_student.dart';
 import '../models/user.dart';
 import '../screens/email_verification_screen.dart';
 import '../screens/home_screen.dart';
@@ -19,6 +21,7 @@ import '../screens/professor/student_sessions_screen.dart';
 import '../screens/professor/students_screen.dart';
 import '../screens/professor/transcript_viewer_screen.dart';
 import '../screens/role_selection_screen.dart';
+import '../screens/student/case_history_screen.dart';
 import '../screens/student/chat_screen.dart';
 import '../screens/student/diagnosis_result_screen.dart';
 import '../screens/student/enroll_screen.dart';
@@ -293,6 +296,26 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/case-history/:courseId',
+        builder: (_, state) {
+          final course = state.extra as dynamic;
+          return CaseHistoryScreen(course: course);
+        },
+        routes: [
+          GoRoute(
+            path: 'sessions/:sessionId',
+            builder: (_, state) {
+              final sessionItem = state.extra as CompletedSessionItem;
+              return TranscriptViewerScreen(
+                appBarTitle: sessionItem.diseaseName,
+                headerLabel: 'You',
+                sessionItem: sessionItem,
+              );
+            },
+          ),
+        ],
+      ),
+      GoRoute(
         path: '/course/:courseId',
         builder: (_, state) {
           final course = state.extra as dynamic;
@@ -327,8 +350,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     path: 'sessions/:sessionId',
                     builder: (_, state) {
                       final extra = state.extra as Map<String, dynamic>;
+                      final student = extra['student'] as EnrolledStudent;
                       return TranscriptViewerScreen(
-                        student: extra['student'],
+                        appBarTitle: student.displayLabel,
+                        headerLabel: student.displayLabel,
                         sessionItem: extra['sessionItem'],
                       );
                     },

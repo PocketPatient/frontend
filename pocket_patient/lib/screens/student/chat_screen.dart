@@ -386,6 +386,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 value: session.status,
               ),
             ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  context.push('/case-history/${widget.course.id}',
+                      extra: widget.course);
+                },
+                icon: const Icon(Icons.history_rounded, size: 18),
+                label: const Text('View case history'),
+              ),
+            ),
           ],
         ),
       ),
