@@ -9,6 +9,7 @@ import '../providers/courses_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/units_provider.dart';
 import '../widgets/offline_banner.dart';
+import 'professor/class_analytics_tab.dart';
 import 'student/dashboard_tab.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -141,7 +142,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
               ),
               isProfessor
-                  ? const _AnalyticsPlaceholder()
+                  ? const ClassAnalyticsTab()
                   : const StudentDashboardTab(),
             ],
           ),
@@ -168,26 +169,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
-class _AnalyticsPlaceholder extends StatelessWidget {
-  const _AnalyticsPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.bar_chart_rounded, size: 64, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          Text(
-            'Analytics coming soon',
-            style: TextStyle(color: Colors.grey[500], fontSize: 16),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _CourseList extends StatelessWidget {
   final List<Course> courses;

@@ -3,11 +3,13 @@ import 'package:dio/dio.dart';
 import '../config/constants.dart';
 import '../models/auth_response.dart';
 import '../models/chat_session.dart';
+import '../models/class_summary.dart';
 import '../models/course.dart';
 import '../models/diagnosis_result.dart';
 import '../models/completed_session_item.dart';
 import '../models/disease_document_preview.dart';
 import '../models/enrolled_student.dart';
+import '../models/student_drilldown.dart';
 import '../models/student_summary.dart';
 import '../models/unit.dart';
 import '../models/user.dart';
@@ -216,6 +218,34 @@ class ApiService {
     final resp = await _dio.get('/analytics/student/summary',
         queryParameters: {'course_id': courseId});
     return StudentSummary.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<ClassSummary> getClassSummary(String courseId) async {
+    final resp = await _dio.get('/analytics/professor/class-summary',
+        queryParameters: {'course_id': courseId});
+    return ClassSummary.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<StudentDrilldown> getStudentDrilldown(
+    String courseId,
+    String studentId, {
+    int page = 1,
+    int pageSize = 100,
+  }) async {
+    final resp = await _dio.get('/analytics/professor/student/$studentId',
+        queryParameters: {'course_id': courseId, 'page': page, 'page_size': pageSize});
+    return StudentDrilldown.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  /// Raw CSV bytes for grade export — caller writes to a temp file and
+  /// shares it (see ClassAnalyticsTab._exportGrades).
+  Future<List<int>> exportGradesCsv(String courseId) async {
+    final resp = await _dio.get<List<int>>(
+      '/analytics/professor/export',
+      queryParameters: {'course_id': courseId, 'format': 'csv'},
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return resp.data!;
   }
 
   /// The caller's own completed cases for a course (Week 13 case history).

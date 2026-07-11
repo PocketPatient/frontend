@@ -17,6 +17,7 @@ import '../screens/login_screen.dart';
 import '../screens/professor/course_management_screen.dart';
 import '../screens/professor/create_course_screen.dart';
 import '../screens/professor/disease_upload_screen.dart';
+import '../screens/professor/student_drilldown_screen.dart';
 import '../screens/professor/student_sessions_screen.dart';
 import '../screens/professor/students_screen.dart';
 import '../screens/professor/transcript_viewer_screen.dart';
@@ -310,6 +311,32 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 appBarTitle: sessionItem.diseaseName,
                 headerLabel: 'You',
                 sessionItem: sessionItem,
+              );
+            },
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/class-analytics/:courseId/students/:studentId',
+        builder: (_, state) {
+          final courseId = state.pathParameters['courseId']!;
+          final studentId = state.pathParameters['studentId']!;
+          final email = state.uri.queryParameters['email'] ?? '';
+          return StudentDrilldownScreen(
+            courseId: courseId,
+            studentId: studentId,
+            studentLabel: email,
+          );
+        },
+        routes: [
+          GoRoute(
+            path: 'sessions/:sessionId',
+            builder: (_, state) {
+              final extra = state.extra as Map<String, dynamic>;
+              return TranscriptViewerScreen(
+                appBarTitle: extra['headerLabel'] as String,
+                headerLabel: extra['headerLabel'] as String,
+                sessionItem: extra['sessionItem'] as CompletedSessionItem,
               );
             },
           ),
