@@ -79,9 +79,7 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
   }
 
   Future<void> _submit() async {
-    debugPrint('=== DX: _submit called ===');
     if (!_formKey.currentState!.validate()) {
-      debugPrint('=== DX: form invalid ===');
       return;
     }
 
@@ -89,10 +87,8 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
       _sheetState = _SheetState.submitting;
       _errorText = null;
     });
-    debugPrint('=== DX: state -> submitting ===');
 
     try {
-      debugPrint('=== DX: calling API ===');
       final result = await ref
           .read(sessionProvider(widget.courseId).notifier)
           .submitDiagnosis(
@@ -101,7 +97,6 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
             _justificationCtrl.text.trim(),
           );
 
-      debugPrint('=== DX: got result correct=${result.correct} mounted=$mounted ===');
       if (!mounted) return;
 
       setState(() {
@@ -109,9 +104,7 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
         _sheetState =
             result.correct ? _SheetState.correct : _SheetState.incorrect;
       });
-      debugPrint('=== DX: state -> ${_sheetState.name} ===');
     } on DioException catch (e) {
-      debugPrint('=== DX: DioException status=${e.response?.statusCode} type=${e.type} mounted=$mounted ===');
       if (!mounted) return;
       final status = e.response?.statusCode;
       if (status == 404) {
@@ -119,7 +112,6 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
         // With a valid active session this should never happen, so surface it
         // instead of silently closing the sheet (a silent pop made the failure
         // look like the panel "instantly dismissing" on submit).
-        debugPrint('=== DX: 404 body=${e.response?.data} ===');
         setState(() {
           _errorText =
               'Submission failed (404): the case could not be found on the server.';
@@ -131,8 +123,7 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
         _errorText = _extractDetail(e) ?? 'Submission failed. Please try again.';
         _sheetState = _SheetState.form;
       });
-    } catch (e, st) {
-      debugPrint('=== DX: unexpected error: $e\n$st ===');
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _errorText = 'An unexpected error occurred.';
@@ -163,7 +154,6 @@ class _DiagnosisSheetState extends ConsumerState<_DiagnosisSheet> {
   }
 
   void _dismiss() {
-    debugPrint('=== DX: _dismiss called, result=${_result?.correct} ===');
     Navigator.of(context).pop(_result);
   }
 

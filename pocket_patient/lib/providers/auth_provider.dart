@@ -15,7 +15,9 @@ import '../screens/login_screen.dart';
 import '../screens/professor/course_management_screen.dart';
 import '../screens/professor/create_course_screen.dart';
 import '../screens/professor/disease_upload_screen.dart';
+import '../screens/professor/student_sessions_screen.dart';
 import '../screens/professor/students_screen.dart';
+import '../screens/professor/transcript_viewer_screen.dart';
 import '../screens/role_selection_screen.dart';
 import '../screens/student/chat_screen.dart';
 import '../screens/student/diagnosis_result_screen.dart';
@@ -310,6 +312,30 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               final course = state.extra as dynamic;
               return StudentsScreen(course: course);
             },
+            routes: [
+              GoRoute(
+                path: ':studentId',
+                builder: (_, state) {
+                  final extra = state.extra as Map<String, dynamic>;
+                  return StudentSessionsScreen(
+                    course: extra['course'],
+                    student: extra['student'],
+                  );
+                },
+                routes: [
+                  GoRoute(
+                    path: 'sessions/:sessionId',
+                    builder: (_, state) {
+                      final extra = state.extra as Map<String, dynamic>;
+                      return TranscriptViewerScreen(
+                        student: extra['student'],
+                        sessionItem: extra['sessionItem'],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),

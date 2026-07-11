@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_session.dart';
 import '../models/diagnosis_result.dart';
@@ -68,8 +67,6 @@ class SessionNotifier extends FamilyAsyncNotifier<ChatSession?, String> {
   ) async {
     final session = state.valueOrNull;
     if (session == null) throw StateError('No active session');
-
-    debugPrint('=== DX NOTIFIER: courseId=$_courseId sessionId=${session.id} status=${session.status} ===');
 
     final result = await ref.read(apiServiceProvider).submitDiagnosis(
           session.id,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/course.dart';
 import '../../models/enrolled_student.dart';
 import '../../providers/auth_provider.dart';
@@ -186,6 +187,10 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
               color: Colors.grey[500],
               tooltip: 'Remove student',
               onPressed: () => _removeStudent(student),
+            ),
+            onTap: () => context.push(
+              '/course/${widget.course.id}/students/${student.userId}',
+              extra: {'course': widget.course, 'student': student},
             ),
           );
         },

@@ -10,11 +10,37 @@ import '../providers/session_provider.dart';
 import '../providers/units_provider.dart';
 import '../widgets/offline_banner.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    // Week 12: tab scaffolding for Phase 3 analytics — Tab 2 is a
+    // placeholder until the dashboards land. FAB only makes sense on the
+    // cases/courses tab, so track the index to hide it on Tab 2.
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(() {
+        if (!_tabController.indexIsChanging) setState(() {});
+      });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(authNotifierProvider).valueOrNull;
     final coursesAsync = ref.watch(coursesProvider);
     final isProfessor = user?.role == 'professor';
@@ -32,6 +58,16 @@ class HomeScreen extends ConsumerWidget {
                 ref.read(authNotifierProvider.notifier).signOut(),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          tabs: [
+            Tab(text: isProfessor ? 'Courses' : 'Cases'),
+            Tab(text: isProfessor ? 'Class Analytics' : 'Dashboard'),
+          ],
+        ),
       ),
       body: OfflineBannerScaffold(child: Column(children: [
         // Professor account pending verification banner
@@ -62,58 +98,90 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
           ),
-        Expanded(child: RefreshIndicator(
-        onRefresh: () async {
-          // Refresh courses, then invalidate each course's unit provider
-          // so stale unit counts don't linger after professor changes.
-          final oldCourses =
-              ref.read(coursesProvider).valueOrNull ?? [];
-          for (final c in oldCourses) {
-            ref.invalidate(unitsProvider(c.id));
-          }
-          await ref.read(coursesProvider.notifier).refresh();
-        },
-        child: coursesAsync.when(
-          loading: () =>
-              const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('Could not load courses',
-                    style: TextStyle(color: Colors.grey[600])),
-                const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: () =>
-                      ref.read(coursesProvider.notifier).refresh(),
-                  child: const Text('Retry'),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              RefreshIndicator(
+                onRefresh: () async {
+                  // Refresh courses, then invalidate each course's unit
+                  // provider so stale unit counts don't linger after
+                  // professor changes.
+                  final oldCourses =
+                      ref.read(coursesProvider).valueOrNull ?? [];
+                  for (final c in oldCourses) {
+                    ref.invalidate(unitsProvider(c.id));
+                  }
+                  await ref.read(coursesProvider.notifier).refresh();
+                },
+                child: coursesAsync.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('Could not load courses',
+                            style: TextStyle(color: Colors.grey[600])),
+                        const SizedBox(height: 12),
+                        OutlinedButton(
+                          onPressed: () =>
+                              ref.read(coursesProvider.notifier).refresh(),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  data: (courses) => _CourseList(
+                    courses: courses,
+                    isProfessor: isProfessor,
+                    userName: user?.displayName ?? user?.email ?? '',
+                  ),
                 ),
-              ],
-            ),
-          ),
-          data: (courses) => _CourseList(
-            courses: courses,
-            isProfessor: isProfessor,
-            userName: user?.displayName ?? user?.email ?? '',
+              ),
+              const _AnalyticsPlaceholder(),
+            ],
           ),
         ),
-      )),
       ])),
-      floatingActionButton: isProfessor
-          ? FloatingActionButton.extended(
-              onPressed: () => context.push('/create-course'),
-              backgroundColor: const Color(0xFFCC0033),
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add),
-              label: const Text('New course'),
-            )
-          : FloatingActionButton.extended(
-              onPressed: () => context.push('/enroll'),
-              backgroundColor: const Color(0xFFCC0033),
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add),
-              label: const Text('Join course'),
-            ),
+      floatingActionButton: _tabController.index != 0
+          ? null
+          : (isProfessor
+              ? FloatingActionButton.extended(
+                  onPressed: () => context.push('/create-course'),
+                  backgroundColor: const Color(0xFFCC0033),
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.add),
+                  label: const Text('New course'),
+                )
+              : FloatingActionButton.extended(
+                  onPressed: () => context.push('/enroll'),
+                  backgroundColor: const Color(0xFFCC0033),
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Join course'),
+                )),
+    );
+  }
+}
+
+class _AnalyticsPlaceholder extends StatelessWidget {
+  const _AnalyticsPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.bar_chart_rounded, size: 64, color: Colors.grey[300]),
+          const SizedBox(height: 16),
+          Text(
+            'Analytics coming soon',
+            style: TextStyle(color: Colors.grey[500], fontSize: 16),
+          ),
+        ],
+      ),
     );
   }
 }

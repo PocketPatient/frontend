@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import '../config/constants.dart';
 import '../models/auth_response.dart';
 import '../models/chat_session.dart';
 import '../models/course.dart';
 import '../models/diagnosis_result.dart';
+import '../models/completed_session_item.dart';
 import '../models/disease_document_preview.dart';
 import '../models/enrolled_student.dart';
 import '../models/unit.dart';
@@ -207,6 +207,23 @@ class ApiService {
     await _dio.delete('/courses/$courseId/students/$userId');
   }
 
+  /// A student's sessions (active + completed) within a course, for the
+  /// professor transcript viewer (Week 12).
+  Future<PaginatedSessions> getStudentSessions(
+    String courseId,
+    String studentId, {
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    final resp = await _dio.get('/sessions', queryParameters: {
+      'course_id': courseId,
+      'student_id': studentId,
+      'page': page,
+      'page_size': pageSize,
+    });
+    return PaginatedSessions.fromJson(resp.data as Map<String, dynamic>);
+  }
+
   Future<Course> joinCourse(String classCode) async {
     final resp = await _dio.post(
       '/enrollments/join',
@@ -229,11 +246,6 @@ class _AuthInterceptor extends Interceptor {
     final token = await _authService.readAccessToken();
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
-      if (options.path.contains('/diagnose')) {
-        final storedUserId = await _authService.readUserId();
-        debugPrint(
-            '=== DX REQ: path=${options.path} tokenSub=${_subFromJwt(token)} storedUserId=$storedUserId ===');
-      }
     }
     handler.next(options);
   }
@@ -241,8 +253,6 @@ class _AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
-      debugPrint(
-          '=== DX REFRESH: 401 on path=${err.requestOptions.path}, attempting refresh ===');
       try {
         final auth = await _refreshAccessToken();
         final opts = err.requestOptions;
@@ -290,8 +300,6 @@ class _AuthInterceptor extends Interceptor {
       // Clear everything and let the router redirect to the login screen.
       final storedUserId = await _authService.readUserId();
       final refreshedUserId = _subFromJwt(auth.accessToken);
-      debugPrint(
-          '=== DX REFRESH: storedUserId=$storedUserId refreshedSub=$refreshedUserId ===');
       if (storedUserId != null &&
           refreshedUserId != null &&
           storedUserId != refreshedUserId) {
