@@ -11,6 +11,8 @@ import '../../models/diagnosis_result.dart';
 import '../../providers/completed_sessions_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/units_provider.dart';
+import '../../utils/api_error.dart';
+import '../../widgets/offline_banner.dart';
 import 'diagnosis_sheet.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -283,37 +285,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ],
         ),
-        body: sessionAsync.when(
-          loading: () =>
-              const Center(child: CircularProgressIndicator()),
-          error: (e, _) => _ErrorState(
-              onRetry: () =>
-                  ref.invalidate(sessionProvider(widget.course.id))),
-          data: (session) => session == null
-              ? _NoSessionState(courseId: widget.course.id)
-              : _ChatBody(
-                  session: session,
-                  bubbleKeys: _bubbleKeys,
-                  scrollCtrl: _scrollCtrl,
-                  inputCtrl: _inputCtrl,
-                  focusNode: _focusNode,
-                  pendingContent: _pendingContent,
-                  sendError: _sendError,
-                  onSend: _send,
-                  onSendInstant:
-                      kDebugMode ? () => _send(instant: true) : null,
-                  onRetry: _retry,
-                  onRefresh: _refresh,
-                  onDiagnose: session.isActive
-                      ? _openDiagnosisSheet
-                      : null,
-                  onViewResults: session.isDiagnosed
-                      ? () => context.push(
-                            '/diagnosis-result/${widget.course.id}',
-                            extra: _resultFromSession(session),
-                          )
-                      : null,
-                ),
+        body: OfflineBannerScaffold(
+          child: sessionAsync.when(
+            loading: () =>
+                const Center(child: CircularProgressIndicator()),
+            error: (e, _) => _ErrorState(
+                error: e,
+                onRetry: () =>
+                    ref.invalidate(sessionProvider(widget.course.id))),
+            data: (session) => session == null
+                ? _NoSessionState(courseId: widget.course.id)
+                : _ChatBody(
+                    session: session,
+                    bubbleKeys: _bubbleKeys,
+                    scrollCtrl: _scrollCtrl,
+                    inputCtrl: _inputCtrl,
+                    focusNode: _focusNode,
+                    pendingContent: _pendingContent,
+                    sendError: _sendError,
+                    onSend: _send,
+                    onSendInstant:
+                        kDebugMode ? () => _send(instant: true) : null,
+                    onRetry: _retry,
+                    onRefresh: _refresh,
+                    onDiagnose: session.isActive
+                        ? _openDiagnosisSheet
+                        : null,
+                    onViewResults: session.isDiagnosed
+                        ? () => context.push(
+                              '/diagnosis-result/${widget.course.id}',
+                              extra: _resultFromSession(session),
+                            )
+                        : null,
+                  ),
+          ),
         ),
       ),
     );
@@ -722,7 +727,7 @@ class _NoSessionStateState extends ConsumerState<_NoSessionState> {
                 ? 'Your virtual patient will reach out during the messaging window.'
                 : 'No active units — check back later.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[500], fontSize: 14),
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
           ),
           const SizedBox(height: 32),
           Center(
@@ -760,9 +765,10 @@ class _NoSessionStateState extends ConsumerState<_NoSessionState> {
 }
 
 class _ErrorState extends StatelessWidget {
+  final Object error;
   final VoidCallback onRetry;
 
-  const _ErrorState({required this.onRetry});
+  const _ErrorState({required this.error, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -770,7 +776,7 @@ class _ErrorState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('Could not load session',
+          Text(friendlyErrorMessage(error),
               style: TextStyle(color: Colors.grey[600])),
           const SizedBox(height: 12),
           OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
@@ -929,12 +935,12 @@ class _Bubble extends StatelessWidget {
                       Text(
                         timestamp,
                         style: TextStyle(
-                            color: Colors.grey[500], fontSize: 11),
+                            color: Colors.grey[600], fontSize: 11),
                       ),
                       if (showCheck) ...[
                         const SizedBox(width: 3),
                         Icon(Icons.check,
-                            size: 11, color: Colors.grey[400]),
+                            size: 11, color: Colors.grey[600]),
                       ],
                     ],
                   ),
@@ -1016,7 +1022,7 @@ class _AwaitingBubble extends StatelessWidget {
                 Text(
                   'Awaiting patient reply',
                   style: TextStyle(
-                    color: Colors.grey[500],
+                    color: Colors.grey[600],
                     fontSize: 13,
                     fontStyle: FontStyle.italic,
                   ),
@@ -1027,7 +1033,7 @@ class _AwaitingBubble extends StatelessWidget {
                   height: 12,
                   child: CircularProgressIndicator(
                     strokeWidth: 1.5,
-                    color: Colors.grey[400],
+                    color: Colors.grey[600],
                   ),
                 ),
               ],
@@ -1080,7 +1086,7 @@ class _InputBar extends StatelessWidget {
                       ? 'Type a message…'
                       : 'Waiting for patient…',
                   hintStyle:
-                      TextStyle(color: Colors.grey[400], fontSize: 14),
+                      TextStyle(color: Colors.grey[600], fontSize: 14),
                   filled: true,
                   fillColor:
                       enabled ? Colors.white : Colors.grey[100],
@@ -1117,7 +1123,7 @@ class _InputBar extends StatelessWidget {
                     ? Colors.amber[700]
                     : Colors.grey[300],
                 foregroundColor:
-                    enabled ? Colors.white : Colors.grey[500],
+                    enabled ? Colors.white : Colors.grey[600],
                 elevation: enabled ? 2 : 0,
                 tooltip: 'Dev: instant reply (~10s)',
                 child: const Icon(Icons.bolt),
@@ -1131,7 +1137,7 @@ class _InputBar extends StatelessWidget {
                   ? const Color(0xFFCC0033)
                   : Colors.grey[300],
               foregroundColor:
-                  enabled ? Colors.white : Colors.grey[500],
+                  enabled ? Colors.white : Colors.grey[600],
               elevation: enabled ? 2 : 0,
               child: const Icon(Icons.send),
             ),

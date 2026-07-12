@@ -8,6 +8,7 @@ import '../../models/course.dart';
 import '../../models/unit.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/units_provider.dart';
+import '../../utils/api_error.dart';
 
 class CourseManagementScreen extends ConsumerStatefulWidget {
   final Course course;
@@ -186,7 +187,7 @@ class _CourseManagementScreenState
                 child: Row(
                   children: [
                     Icon(Icons.public_outlined,
-                        size: 18, color: Colors.grey[500]),
+                        size: 18, color: Colors.grey[600]),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text('Timezone',
@@ -269,8 +270,8 @@ class _CourseManagementScreenState
               ),
               error: (e, _) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('Could not load units',
-                    style: TextStyle(color: Colors.grey[500])),
+                child: Text(friendlyErrorMessage(e),
+                    style: TextStyle(color: Colors.grey[600])),
               ),
               data: (units) => units.isEmpty
                   ? Padding(
@@ -279,7 +280,7 @@ class _CourseManagementScreenState
                         'No units yet — upload a disease document to create units.',
                         textAlign: TextAlign.center,
                         style:
-                            TextStyle(color: Colors.grey[500], fontSize: 13),
+                            TextStyle(color: Colors.grey[600], fontSize: 13),
                       ),
                     )
                   : Column(
@@ -374,7 +375,7 @@ class _UnitCardState extends ConsumerState<_UnitCard> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+          .showSnackBar(SnackBar(content: Text(friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -406,7 +407,7 @@ class _UnitCardState extends ConsumerState<_UnitCard> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+          .showSnackBar(SnackBar(content: Text(friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -454,7 +455,7 @@ class _UnitCardState extends ConsumerState<_UnitCard> {
                           Text(
                             'Released ${_fmtDate(unit.releaseDate!)}',
                             style: TextStyle(
-                                color: Colors.grey[500], fontSize: 12),
+                                color: Colors.grey[600], fontSize: 12),
                           ),
                         ],
                       ],
@@ -469,7 +470,7 @@ class _UnitCardState extends ConsumerState<_UnitCard> {
                       _expanded
                           ? Icons.expand_less
                           : Icons.expand_more,
-                      color: Colors.grey[400],
+                      color: Colors.grey[600],
                     ),
                   ],
                 ],
@@ -552,7 +553,7 @@ class _DiseaseRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(Icons.circle, size: 5, color: Colors.grey[400]),
+          Icon(Icons.circle, size: 5, color: Colors.grey[600]),
           const SizedBox(width: 10),
           Expanded(
             child: Text(disease.name,
@@ -601,7 +602,7 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       text,
       style: TextStyle(
-        color: Colors.grey[500],
+        color: Colors.grey[600],
         fontSize: 11,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.8,
@@ -650,7 +651,7 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: Colors.grey[500]),
+          Icon(icon, size: 18, color: Colors.grey[600]),
           const SizedBox(width: 12),
           Expanded(
               child: Text(label,
@@ -666,7 +667,7 @@ class _InfoRow extends StatelessWidget {
           ),
           if (trailingIcon != null) ...[
             const SizedBox(width: 6),
-            Icon(trailingIcon, size: 16, color: Colors.grey[400]),
+            Icon(trailingIcon, size: 16, color: Colors.grey[600]),
           ],
         ],
       ),
@@ -749,7 +750,7 @@ class _MessagingWindowClock extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               durationLabel,
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
           ],
         ),

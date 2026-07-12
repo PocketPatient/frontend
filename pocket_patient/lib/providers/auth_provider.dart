@@ -37,7 +37,15 @@ import '../services/auth_service.dart';
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
 final apiServiceProvider = Provider<ApiService>((ref) {
-  return ApiService(authService: ref.read(authServiceProvider));
+  return ApiService(
+    authService: ref.read(authServiceProvider),
+    // Refresh token expired/revoked/mixed-account — reset auth state so
+    // RouterNotifier's listener redirects to /login immediately, instead
+    // of the user being stuck on a screen with dead requests until the
+    // next cold start happens to re-check.
+    onUnauthenticated: () =>
+        ref.read(authNotifierProvider.notifier).forceSignedOut(),
+  );
 });
 
 // True while we're waiting for the user to verify their email address.
@@ -156,6 +164,14 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
 
   Future<void> sendPasswordReset(String email) async {
     await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+  }
+
+  /// Called from ApiService's interceptor when a refresh token turns out to
+  /// be dead (expired/revoked/mixed-account) — tokens are already cleared by
+  /// that point, this just resets in-memory state so RouterNotifier's
+  /// listener redirects to /login right away.
+  void forceSignedOut() {
+    state = const AsyncData(null);
   }
 
   Future<void> setRole(String role) async {

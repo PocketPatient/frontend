@@ -87,7 +87,7 @@ class _EnrollScreenState extends ConsumerState<EnrollScreen> {
                     labelText: 'Class code',
                     hintText: 'ABC123',
                     hintStyle: TextStyle(
-                        letterSpacing: 8, color: Colors.grey[400]),
+                        letterSpacing: 8, color: Colors.grey[600]),
                     border: const OutlineInputBorder(),
                     counterText: '',
                   ),

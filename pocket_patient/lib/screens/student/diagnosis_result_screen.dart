@@ -107,7 +107,7 @@ class DiagnosisResultScreen extends StatelessWidget {
                             Text(
                               'Total Score',
                               style: TextStyle(
-                                  fontSize: 12, color: Colors.grey[500]),
+                                  fontSize: 12, color: Colors.grey[600]),
                             ),
                           ],
                         ),

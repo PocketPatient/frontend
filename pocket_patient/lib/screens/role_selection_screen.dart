@@ -132,7 +132,7 @@ class _RoleCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: Colors.grey[400]),
+              Icon(Icons.chevron_right, color: Colors.grey[600]),
             ],
           ),
         ),

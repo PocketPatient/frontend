@@ -5,6 +5,7 @@ import '../../models/course.dart';
 import '../../models/enrolled_student.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/courses_provider.dart';
+import '../../utils/api_error.dart';
 
 class StudentsScreen extends ConsumerStatefulWidget {
   final Course course;
@@ -36,7 +37,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
           await ref.read(apiServiceProvider).getStudents(widget.course.id);
       if (mounted) setState(() => _students = students);
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not load students.');
+      if (mounted) setState(() => _error = friendlyErrorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -82,7 +83,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to remove student.')),
+          SnackBar(content: Text(friendlyErrorMessage(e))),
         );
       }
     }
@@ -135,13 +136,13 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
             const SizedBox(height: 16),
             Text(
               'No students enrolled yet.',
-              style: TextStyle(color: Colors.grey[500], fontSize: 16),
+              style: TextStyle(color: Colors.grey[600], fontSize: 16),
             ),
             const SizedBox(height: 8),
             Text(
               'Share the class code ${widget.course.classCode} with your students.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[400], fontSize: 14),
+              style: TextStyle(color: Colors.grey[600], fontSize: 14),
             ),
           ],
         ),
@@ -176,15 +177,15 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
             subtitle: student.displayName != null
                 ? Text(student.email,
                     style: TextStyle(
-                        color: Colors.grey[500], fontSize: 12))
+                        color: Colors.grey[600], fontSize: 12))
                 : Text(
                     'Enrolled ${_fmtDate(student.enrolledAt)}',
                     style: TextStyle(
-                        color: Colors.grey[500], fontSize: 12),
+                        color: Colors.grey[600], fontSize: 12),
                   ),
             trailing: IconButton(
               icon: const Icon(Icons.person_remove_outlined),
-              color: Colors.grey[500],
+              color: Colors.grey[600],
               tooltip: 'Remove student',
               onPressed: () => _removeStudent(student),
             ),

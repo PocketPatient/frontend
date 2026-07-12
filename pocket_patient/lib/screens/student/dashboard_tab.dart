@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/courses_provider.dart';
 import '../../providers/student_summary_provider.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/student_summary_charts.dart';
 
 /// Week 13 — student analytics dashboard (score trend, category radar,
@@ -24,7 +25,7 @@ class _StudentDashboardTabState extends ConsumerState<StudentDashboardTab> {
     return coursesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
-        child: Text('Could not load courses', style: TextStyle(color: Colors.grey[600])),
+        child: Text(friendlyErrorMessage(e), style: TextStyle(color: Colors.grey[600])),
       ),
       data: (courses) {
         if (courses.isEmpty) {
@@ -35,7 +36,7 @@ class _StudentDashboardTabState extends ConsumerState<StudentDashboardTab> {
                 Icon(Icons.bar_chart_rounded, size: 64, color: Colors.grey[300]),
                 const SizedBox(height: 16),
                 Text('Enroll in a course to see your analytics.',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 16)),
               ],
             ),
           );
@@ -101,7 +102,7 @@ class _DashboardBody extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 80),
           children: [
             Center(
-              child: Text('Could not load your analytics.',
+              child: Text(friendlyErrorMessage(e),
                   style: TextStyle(color: Colors.grey[600])),
             ),
             const SizedBox(height: 12),

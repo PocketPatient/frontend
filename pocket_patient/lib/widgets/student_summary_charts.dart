@@ -26,7 +26,7 @@ class StudentSummaryCharts extends StatelessWidget {
             Text(
               'Complete your first case to see your progress.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[500], fontSize: 16),
+              style: TextStyle(color: Colors.grey[600], fontSize: 16),
             ),
           ],
         ),
@@ -203,7 +203,7 @@ class _ScoreTrendCard extends StatelessWidget {
                         reservedSize: 32,
                         interval: 25,
                         getTitlesWidget: (v, meta) => Text('${v.toInt()}',
-                            style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+                            style: TextStyle(fontSize: 10, color: Colors.grey[600])),
                       ),
                     ),
                     bottomTitles: AxisTitles(
@@ -212,7 +212,7 @@ class _ScoreTrendCard extends StatelessWidget {
                         reservedSize: 24,
                         interval: 1,
                         getTitlesWidget: (v, meta) => Text('${v.toInt()}',
-                            style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+                            style: TextStyle(fontSize: 10, color: Colors.grey[600])),
                       ),
                     ),
                   ),
@@ -221,7 +221,7 @@ class _ScoreTrendCard extends StatelessWidget {
                       ? ExtraLinesData(horizontalLines: [
                           HorizontalLine(
                             y: summary.avgScore!,
-                            color: Colors.grey[500]!,
+                            color: Colors.grey[600]!,
                             strokeWidth: 1.5,
                             dashArray: [6, 4],
                             label: HorizontalLineLabel(
@@ -437,7 +437,7 @@ class _ResponseTimeTrendCard extends StatelessWidget {
                   showTitles: true,
                   reservedSize: 36,
                   getTitlesWidget: (v, meta) => Text('${v.toInt()}m',
-                      style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+                      style: TextStyle(fontSize: 10, color: Colors.grey[600])),
                 ),
               ),
               bottomTitles: AxisTitles(
@@ -445,7 +445,7 @@ class _ResponseTimeTrendCard extends StatelessWidget {
                   showTitles: true,
                   reservedSize: 24,
                   getTitlesWidget: (v, meta) => Text('${v.toInt()}',
-                      style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+                      style: TextStyle(fontSize: 10, color: Colors.grey[600])),
                 ),
               ),
             ),
@@ -550,7 +550,7 @@ class _EmptyChartMessage extends StatelessWidget {
     return SizedBox(
       height: 80,
       child: Center(
-        child: Text('Not enough data yet.', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+        child: Text('Not enough data yet.', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
       ),
     );
   }

@@ -8,6 +8,7 @@ import '../providers/completed_sessions_provider.dart';
 import '../providers/courses_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/units_provider.dart';
+import '../utils/api_error.dart';
 import '../widgets/offline_banner.dart';
 import 'professor/class_analytics_tab.dart';
 import 'student/dashboard_tab.dart';
@@ -128,7 +129,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Could not load courses',
+                        Text(friendlyErrorMessage(e),
                             style: TextStyle(color: Colors.grey[600])),
                         const SizedBox(height: 12),
                         OutlinedButton(
@@ -202,7 +203,7 @@ class _CourseList extends StatelessWidget {
                       ? "You haven't created any courses yet."
                       : "You're not enrolled in any courses yet.",
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[500], fontSize: 16),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -210,7 +211,7 @@ class _CourseList extends StatelessWidget {
                       ? 'Tap "New course" to get started.'
                       : 'Tap "Join course" and enter your class code.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 ),
               ],
             ),
@@ -384,7 +385,7 @@ class _CourseCard extends ConsumerWidget {
               style: TextStyle(
                   color: waitLevel == WaitLevel.red
                       ? Colors.red[700]
-                      : Colors.grey[500],
+                      : Colors.grey[600],
                   fontSize: 12,
                   fontWeight: waitLevel == WaitLevel.red
                       ? FontWeight.w600
@@ -471,7 +472,15 @@ class _InfoChip extends StatelessWidget {
     );
 
     if (onTap != null) {
-      return GestureDetector(onTap: onTap, child: chip);
+      // Compact inline pill by design (matches the other non-tappable chips
+      // in this row) — below the 48dp target guideline, but this is a
+      // secondary shortcut; the same action has a full-sized entry point
+      // via the chat screen's "View case history" button.
+      return Semantics(
+        button: true,
+        label: label,
+        child: GestureDetector(onTap: onTap, child: chip),
+      );
     }
     return chip;
   }

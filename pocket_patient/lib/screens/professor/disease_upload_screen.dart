@@ -189,7 +189,7 @@ class _DiseaseUploadScreenState extends ConsumerState<DiseaseUploadScreen> {
             Text(
               '${(_pickedFile!.size / 1024).toStringAsFixed(1)} KB',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
           ],
 
@@ -398,6 +398,7 @@ class _UnitPreviewCardState extends State<_UnitPreviewCard> {
             trailing: IconButton(
               icon: Icon(
                   _expanded ? Icons.expand_less : Icons.expand_more),
+              tooltip: _expanded ? 'Collapse' : 'Expand',
               onPressed: () =>
                   setState(() => _expanded = !_expanded),
             ),
@@ -416,7 +417,7 @@ class _UnitPreviewCardState extends State<_UnitPreviewCard> {
                         child: Row(
                           children: [
                             Icon(Icons.circle,
-                                size: 6, color: Colors.grey[400]),
+                                size: 6, color: Colors.grey[600]),
                             const SizedBox(width: 8),
                             Expanded(
                                 child: Text(d,

@@ -198,7 +198,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Text('or',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                 ),
                 const Expanded(child: Divider()),
               ]),
@@ -263,6 +263,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           icon: Icon(_obscurePassword
                               ? Icons.visibility_outlined
                               : Icons.visibility_off_outlined),
+                          tooltip: _obscurePassword
+                              ? 'Show password'
+                              : 'Hide password',
                           onPressed: () => setState(
                               () => _obscurePassword = !_obscurePassword),
                         ),
@@ -291,6 +294,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             icon: Icon(_obscureConfirm
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined),
+                            tooltip: _obscureConfirm
+                                ? 'Show password'
+                                : 'Hide password',
                             onPressed: () => setState(
                                 () => _obscureConfirm = !_obscureConfirm),
                           ),

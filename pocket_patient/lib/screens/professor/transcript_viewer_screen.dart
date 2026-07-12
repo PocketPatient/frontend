@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/chat_session.dart';
 import '../../models/completed_session_item.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/api_error.dart';
 
 /// Read-only transcript view — same bubble layout as the student chat
 /// screen, but no input bar and a header showing case metadata instead of
@@ -47,8 +48,8 @@ class _TranscriptViewerScreenState extends ConsumerState<TranscriptViewerScreen>
           .read(apiServiceProvider)
           .getSession(widget.sessionItem.sessionId);
       if (mounted) setState(() => _session = session);
-    } catch (_) {
-      if (mounted) setState(() => _error = 'Could not load transcript.');
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyErrorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -104,7 +105,7 @@ class _TranscriptViewerScreenState extends ConsumerState<TranscriptViewerScreen>
           child: items.isEmpty
               ? Center(
                   child: Text('No messages yet.',
-                      style: TextStyle(color: Colors.grey[500])),
+                      style: TextStyle(color: Colors.grey[600])),
                 )
               : ListView(
                   padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
@@ -257,7 +258,7 @@ class _ReadOnlyBubble extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   _relativeTime(message.sentAt),
-                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 11),
                 ),
               ],
             ),

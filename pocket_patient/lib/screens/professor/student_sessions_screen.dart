@@ -5,6 +5,7 @@ import '../../models/completed_session_item.dart';
 import '../../models/course.dart';
 import '../../models/enrolled_student.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/api_error.dart';
 
 /// Lists a single student's sessions (active + completed) within a course.
 /// Tapping a row opens the read-only transcript viewer (Week 12 Task 2).
@@ -44,8 +45,8 @@ class _StudentSessionsScreenState extends ConsumerState<StudentSessionsScreen> {
           .read(apiServiceProvider)
           .getStudentSessions(widget.course.id, widget.student.userId);
       if (mounted) setState(() => _sessions = result.items);
-    } catch (_) {
-      if (mounted) setState(() => _error = 'Could not load sessions.');
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyErrorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -88,7 +89,7 @@ class _StudentSessionsScreenState extends ConsumerState<StudentSessionsScreen> {
           children: [
             Icon(Icons.forum_outlined, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 16),
-            Text('No cases yet.', style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+            Text('No cases yet.', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
           ],
         ),
       );
@@ -131,7 +132,7 @@ class _SessionRow extends StatelessWidget {
       title: Text(item.diseaseName, style: const TextStyle(fontWeight: FontWeight.w500)),
       subtitle: Text(
         '${item.category} • ${item.turnCount} turns • ${_fmtDate(item.startedAt)}',
-        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+        style: TextStyle(color: Colors.grey[600], fontSize: 12),
       ),
       trailing: statusChip,
       onTap: onTap,

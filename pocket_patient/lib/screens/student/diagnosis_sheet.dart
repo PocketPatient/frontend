@@ -504,7 +504,7 @@ class _FormView extends StatelessWidget {
                       onTap: onCancel,
                       child: Text('Cancel',
                           style: TextStyle(
-                              color: Colors.grey[500],
+                              color: Colors.grey[600],
                               fontSize: 14,
                               fontWeight: FontWeight.w500)),
                     ),
@@ -570,7 +570,7 @@ class _FormView extends StatelessWidget {
                     backgroundColor: const Color(0xFFCC0033),
                     foregroundColor: Colors.white,
                     disabledBackgroundColor: Colors.grey[300],
-                    disabledForegroundColor: Colors.grey[500],
+                    disabledForegroundColor: Colors.grey[600],
                   ),
                 ),
               ]),
@@ -604,11 +604,11 @@ class _FormView extends StatelessWidget {
                 Text('$justLen / $_justificationMax',
                     style: TextStyle(
                         fontSize: 11,
-                        color: justOk ? Colors.green[600] : Colors.grey[500])),
+                        color: justOk ? Colors.green[600] : Colors.grey[600])),
               ]),
               const SizedBox(height: 4),
               Text('Min $_justificationMin characters — describe your reasoning.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600])),
               const SizedBox(height: 6),
               TextFormField(
                 controller: justificationCtrl,
@@ -683,7 +683,7 @@ class _FormView extends StatelessWidget {
 
   InputDecoration _dec({required String hint, Widget? counter}) => InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+        hintStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
         filled: true,
         fillColor: Colors.grey[50],
         counterText: '',

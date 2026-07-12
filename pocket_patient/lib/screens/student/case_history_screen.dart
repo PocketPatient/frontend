@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/completed_session_item.dart';
 import '../../models/course.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/api_error.dart';
 
 /// A student's own completed cases for a course — the Week 8 gap closed out
 /// in Week 13. Reuses TranscriptViewerScreen (built for the professor
@@ -38,8 +39,8 @@ class _CaseHistoryScreenState extends ConsumerState<CaseHistoryScreen> {
           .read(apiServiceProvider)
           .getMyCompletedSessions(widget.course.id);
       if (mounted) setState(() => _sessions = result.items);
-    } catch (_) {
-      if (mounted) setState(() => _error = 'Could not load your case history.');
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyErrorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -83,7 +84,7 @@ class _CaseHistoryScreenState extends ConsumerState<CaseHistoryScreen> {
             Icon(Icons.history_rounded, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 16),
             Text('No completed cases yet.',
-                style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                style: TextStyle(color: Colors.grey[600], fontSize: 16)),
           ],
         ),
       );
@@ -101,7 +102,7 @@ class _CaseHistoryScreenState extends ConsumerState<CaseHistoryScreen> {
             title: Text(item.diseaseName, style: const TextStyle(fontWeight: FontWeight.w500)),
             subtitle: Text(
               '${item.category} • ${item.turnCount} turns • ${_fmtDate(item.startedAt)}',
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
             trailing: item.score != null
                 ? _ScoreChip(score: item.score!)

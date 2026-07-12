@@ -11,6 +11,7 @@ import '../../models/enrolled_student.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/class_summary_provider.dart';
 import '../../providers/courses_provider.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/dashboard_animations.dart';
 
 const _scarlet = Color(0xFFCC0033);
@@ -36,7 +37,8 @@ class _ClassAnalyticsTabState extends ConsumerState<ClassAnalyticsTab> {
     return coursesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
-        child: Text('Could not load courses', style: TextStyle(color: Colors.grey[600])),
+        child: Text(friendlyErrorMessage(e),
+            style: TextStyle(color: Colors.grey[600])),
       ),
       data: (courses) {
         if (courses.isEmpty) {
@@ -44,10 +46,11 @@ class _ClassAnalyticsTabState extends ConsumerState<ClassAnalyticsTab> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.bar_chart_rounded, size: 64, color: Colors.grey[300]),
+                Icon(Icons.bar_chart_rounded,
+                    size: 64, color: Colors.grey[300]),
                 const SizedBox(height: 16),
                 Text('Create a course to see class analytics.',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 16)),
               ],
             ),
           );
@@ -64,7 +67,9 @@ class _ClassAnalyticsTabState extends ConsumerState<ClassAnalyticsTab> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 child: Row(
                   children: [
-                    Text('Course:', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                    Text('Course:',
+                        style:
+                            TextStyle(color: Colors.grey[600], fontSize: 13)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: DropdownButton<String>(
@@ -72,7 +77,8 @@ class _ClassAnalyticsTabState extends ConsumerState<ClassAnalyticsTab> {
                         isExpanded: true,
                         underline: const SizedBox.shrink(),
                         items: courses
-                            .map((c) => DropdownMenuItem(value: c.id, child: Text(c.title)))
+                            .map((c) => DropdownMenuItem(
+                                value: c.id, child: Text(c.title)))
                             .toList(),
                         onChanged: (v) => setState(() => _selectedCourseId = v),
                       ),
@@ -82,7 +88,10 @@ class _ClassAnalyticsTabState extends ConsumerState<ClassAnalyticsTab> {
               ),
             Expanded(
               // Keyed so switching courses fully remounts and refetches.
-              child: _ClassAnalyticsBody(key: ValueKey(courseId), courseId: courseId, courseTitle: course.title),
+              child: _ClassAnalyticsBody(
+                  key: ValueKey(courseId),
+                  courseId: courseId,
+                  courseTitle: course.title),
             ),
           ],
         );
@@ -95,10 +104,12 @@ class _ClassAnalyticsBody extends ConsumerStatefulWidget {
   final String courseId;
   final String courseTitle;
 
-  const _ClassAnalyticsBody({super.key, required this.courseId, required this.courseTitle});
+  const _ClassAnalyticsBody(
+      {super.key, required this.courseId, required this.courseTitle});
 
   @override
-  ConsumerState<_ClassAnalyticsBody> createState() => _ClassAnalyticsBodyState();
+  ConsumerState<_ClassAnalyticsBody> createState() =>
+      _ClassAnalyticsBodyState();
 }
 
 class _ClassAnalyticsBodyState extends ConsumerState<_ClassAnalyticsBody> {
@@ -113,7 +124,8 @@ class _ClassAnalyticsBodyState extends ConsumerState<_ClassAnalyticsBody> {
 
   Future<void> _loadStudents() async {
     try {
-      final students = await ref.read(apiServiceProvider).getStudents(widget.courseId);
+      final students =
+          await ref.read(apiServiceProvider).getStudents(widget.courseId);
       if (mounted) setState(() => _students = students);
     } catch (_) {
       // Heatmap/flagged-list drill-through just won't be tappable — the
@@ -132,7 +144,8 @@ class _ClassAnalyticsBodyState extends ConsumerState<_ClassAnalyticsBody> {
   Future<void> _exportGrades() async {
     setState(() => _exporting = true);
     try {
-      final bytes = await ref.read(apiServiceProvider).exportGradesCsv(widget.courseId);
+      final bytes =
+          await ref.read(apiServiceProvider).exportGradesCsv(widget.courseId);
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/grades_${widget.courseId}.csv');
       await file.writeAsBytes(bytes);
@@ -141,10 +154,10 @@ class _ClassAnalyticsBodyState extends ConsumerState<_ClassAnalyticsBody> {
         [XFile(file.path, mimeType: 'text/csv')],
         subject: 'Grades — ${widget.courseTitle}',
       );
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not export grades.')),
+          SnackBar(content: Text(friendlyErrorMessage(e))),
         );
       }
     } finally {
@@ -155,7 +168,8 @@ class _ClassAnalyticsBodyState extends ConsumerState<_ClassAnalyticsBody> {
   void _openDrilldown(String email) {
     final userId = _userIdForEmail(email);
     if (userId == null) return;
-    context.push('/class-analytics/${widget.courseId}/students/$userId?email=$email');
+    context.push(
+        '/class-analytics/${widget.courseId}/students/$userId?email=$email');
   }
 
   @override
@@ -163,24 +177,29 @@ class _ClassAnalyticsBodyState extends ConsumerState<_ClassAnalyticsBody> {
     final summaryAsync = ref.watch(classSummaryProvider(widget.courseId));
 
     return RefreshIndicator(
-      onRefresh: () async => ref.invalidate(classSummaryProvider(widget.courseId)),
+      onRefresh: () async =>
+          ref.invalidate(classSummaryProvider(widget.courseId)),
       child: summaryAsync.when(
         loading: () => ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: const [SizedBox(height: 120), Center(child: CircularProgressIndicator())],
+          children: const [
+            SizedBox(height: 120),
+            Center(child: CircularProgressIndicator())
+          ],
         ),
         error: (e, _) => ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 80),
           children: [
             Center(
-              child: Text('Could not load class analytics.',
+              child: Text(friendlyErrorMessage(e),
                   style: TextStyle(color: Colors.grey[600])),
             ),
             const SizedBox(height: 12),
             Center(
               child: OutlinedButton(
-                onPressed: () => ref.invalidate(classSummaryProvider(widget.courseId)),
+                onPressed: () =>
+                    ref.invalidate(classSummaryProvider(widget.courseId)),
                 child: const Text('Retry'),
               ),
             ),
@@ -192,12 +211,13 @@ class _ClassAnalyticsBodyState extends ConsumerState<_ClassAnalyticsBody> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 80),
               children: [
-                Icon(Icons.query_stats_rounded, size: 64, color: Colors.grey[300]),
+                Icon(Icons.query_stats_rounded,
+                    size: 64, color: Colors.grey[300]),
                 const SizedBox(height: 16),
                 Center(
                   child: Text('No completed cases yet.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 16)),
                 ),
               ],
             );
@@ -226,7 +246,9 @@ class _ClassAnalyticsBodyState extends ConsumerState<_ClassAnalyticsBody> {
                   onPressed: _exporting ? null : _exportGrades,
                   icon: _exporting
                       ? const SizedBox(
-                          width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.download_rounded, size: 18),
                   label: const Text('Export Grades (CSV)'),
                 ),
@@ -254,8 +276,10 @@ class _ClassOverviewStats extends StatelessWidget {
   const _ClassOverviewStats({required this.summary});
 
   double? get _completionRate {
-    final started = summary.completionByUnit.fold<int>(0, (a, u) => a + u.totalCasesStarted);
-    final diagnosed = summary.completionByUnit.fold<int>(0, (a, u) => a + u.totalDiagnosed);
+    final started = summary.completionByUnit
+        .fold<int>(0, (a, u) => a + u.totalCasesStarted);
+    final diagnosed =
+        summary.completionByUnit.fold<int>(0, (a, u) => a + u.totalDiagnosed);
     if (started == 0) return null;
     return diagnosed / started * 100;
   }
@@ -336,10 +360,12 @@ class _StatTile extends StatelessWidget {
                     ? AnimatedCountUp(
                         value: numericValue!,
                         format: format,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       )
                     : const Text('—',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
                 Text(label,
                     style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                     maxLines: 1,
@@ -367,7 +393,10 @@ class _ScoreDistributionCard extends StatelessWidget {
     final buckets = summary.scoreDistribution;
     final maxCount = buckets.isEmpty
         ? 1
-        : buckets.map((b) => b.count).reduce((a, b) => a > b ? a : b).clamp(1, 1 << 30);
+        : buckets
+            .map((b) => b.count)
+            .reduce((a, b) => a > b ? a : b)
+            .clamp(1, 1 << 30);
 
     return _ChartCard(
       title: 'Score distribution',
@@ -383,7 +412,8 @@ class _ScoreDistributionCard extends StatelessWidget {
                       SizedBox(
                         width: 52,
                         child: Text(b.range,
-                            style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey[600])),
                       ),
                       Expanded(
                         child: ClipRRect(
@@ -400,7 +430,8 @@ class _ScoreDistributionCard extends StatelessWidget {
                       SizedBox(
                         width: 24,
                         child: Text('${b.count}',
-                            style: TextStyle(fontSize: 11, color: Colors.grey[700])),
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey[700])),
                       ),
                     ],
                   ),
@@ -439,11 +470,13 @@ class _UnitCompletionCard extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(u.unitLabel, style: const TextStyle(fontSize: 13)),
+                          Text(u.unitLabel,
+                              style: const TextStyle(fontSize: 13)),
                           Text(
                             '${u.totalDiagnosed}/${u.totalCasesStarted} diagnosed'
                             '${u.avgScore != null ? ' • avg ${u.avgScore!.round()}%' : ''}',
-                            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey[600]),
                           ),
                         ],
                       ),
@@ -546,31 +579,53 @@ class _CategoryHeatmapCard extends StatelessWidget {
                 children: [
                   SizedBox(
                     width: labelWidth,
-                    child: GestureDetector(
-                      onTap: () => onRowTap(heatmap.students[r]),
-                      child: Text(heatmap.students[r],
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12, decoration: TextDecoration.underline)),
+                    height: cellSize,
+                    child: Semantics(
+                      button: true,
+                      label: 'View full analytics for ${heatmap.students[r]}',
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onRowTap(heatmap.students[r]),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(heatmap.students[r],
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  decoration: TextDecoration.underline)),
+                        ),
+                      ),
                     ),
                   ),
                   for (var c = 0; c < heatmap.categories.length; c++)
-                    GestureDetector(
-                      onTap: () => _showCategoryCases(
-                          context, heatmap.students[r], heatmap.categories[c]),
-                      child: Container(
-                        width: cellSize,
-                        height: cellSize,
-                        margin: const EdgeInsets.all(1),
-                        decoration: BoxDecoration(
-                          color: _cellColor(heatmap.scores[r][c]),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          heatmap.scores[r][c] != null ? '${heatmap.scores[r][c]!.round()}' : '—',
-                          style: const TextStyle(fontSize: 11, color: Colors.black87),
+                    Semantics(
+                      button: true,
+                      label: heatmap.scores[r][c] != null
+                          ? '${heatmap.students[r]}, ${heatmap.categories[c]}: '
+                              '${heatmap.scores[r][c]!.round()} percent. '
+                              'Tap to view cases.'
+                          : '${heatmap.students[r]}, ${heatmap.categories[c]}: '
+                              'no data.',
+                      child: GestureDetector(
+                        onTap: () => _showCategoryCases(context,
+                            heatmap.students[r], heatmap.categories[c]),
+                        child: Container(
+                          width: cellSize,
+                          height: cellSize,
+                          margin: const EdgeInsets.all(1),
+                          decoration: BoxDecoration(
+                            color: _cellColor(heatmap.scores[r][c]),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            heatmap.scores[r][c] != null
+                                ? '${heatmap.scores[r][c]!.round()}'
+                                : '—',
+                            style: const TextStyle(
+                                fontSize: 11, color: Colors.black87),
+                          ),
                         ),
                       ),
                     ),
@@ -597,7 +652,8 @@ class _StudentCategorySheet extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_StudentCategorySheet> createState() => _StudentCategorySheetState();
+  ConsumerState<_StudentCategorySheet> createState() =>
+      _StudentCategorySheetState();
 }
 
 class _StudentCategorySheetState extends ConsumerState<_StudentCategorySheet> {
@@ -640,10 +696,12 @@ class _StudentCategorySheetState extends ConsumerState<_StudentCategorySheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('${widget.email} — ${widget.category}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              style:
+                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           const SizedBox(height: 16),
           if (_loading)
-            const Center(child: Padding(
+            const Center(
+                child: Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: CircularProgressIndicator(),
             ))
@@ -651,7 +709,7 @@ class _StudentCategorySheetState extends ConsumerState<_StudentCategorySheet> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text('No cases in this category.',
-                  style: TextStyle(color: Colors.grey[500])),
+                  style: TextStyle(color: Colors.grey[600])),
             )
           else
             ..._cases!.map((c) => ListTile(
@@ -687,28 +745,40 @@ class _FlaggedStudentsCard extends StatelessWidget {
         children: summary.flaggedStudents.map((s) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),
-            child: GestureDetector(
-              onTap: () => onTap(s.email),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.red[100]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red[700]),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(s.email,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 13, color: Colors.red[900])),
-                    ),
-                    Text('${s.avgScore.round()}% • ${s.completedCases} cases',
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red[700])),
-                  ],
+            child: Semantics(
+              button: true,
+              label: 'Flagged: ${s.email}, average score '
+                  '${s.avgScore.round()} percent, ${s.completedCases} cases. '
+                  'Tap to view full analytics.',
+              child: GestureDetector(
+                onTap: () => onTap(s.email),
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.red[100]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded,
+                          size: 16, color: Colors.red[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(s.email,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 13, color: Colors.red[900])),
+                      ),
+                      Text('${s.avgScore.round()}% • ${s.completedCases} cases',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red[700])),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -742,7 +812,9 @@ class _ChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          Text(title,
+              style:
+                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 12),
           child,
         ],
@@ -763,7 +835,7 @@ class _EmptyChartMessage extends StatelessWidget {
       child: Center(
         child: Text(text,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+            style: TextStyle(color: Colors.grey[600], fontSize: 12)),
       ),
     );
   }

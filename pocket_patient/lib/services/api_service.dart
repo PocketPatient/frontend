@@ -18,14 +18,18 @@ import 'auth_service.dart';
 class ApiService {
   final Dio _dio;
 
-  ApiService({required AuthService authService, Dio? dio})
-      : _dio = dio ??
+  ApiService({
+    required AuthService authService,
+    Dio? dio,
+    void Function()? onUnauthenticated,
+  })  : _dio = dio ??
             Dio(BaseOptions(
               baseUrl: kApiBaseUrl,
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 10),
             )) {
-    _dio.interceptors.add(_AuthInterceptor(authService, _dio));
+    _dio.interceptors
+        .add(_AuthInterceptor(authService, _dio, onUnauthenticated));
   }
 
   Future<AuthResponse> login(String firebaseIdToken) async {
@@ -310,9 +314,10 @@ class ApiService {
 class _AuthInterceptor extends Interceptor {
   final AuthService _authService;
   final Dio _dio;
+  final void Function()? _onUnauthenticated;
   Future<AuthResponse>? _refreshFuture;
 
-  _AuthInterceptor(this._authService, this._dio);
+  _AuthInterceptor(this._authService, this._dio, this._onUnauthenticated);
 
   @override
   void onRequest(
@@ -334,6 +339,12 @@ class _AuthInterceptor extends Interceptor {
         final retryResp = await _dio.fetch(opts);
         return handler.resolve(retryResp);
       } catch (_) {
+        // Refresh itself failed (expired/revoked/mixed-account refresh
+        // token) — _doRefresh already cleared stored tokens; also reset
+        // in-memory auth state so the router redirects to login right
+        // away instead of leaving the user staring at a dead screen until
+        // the next cold start happens to notice.
+        _onUnauthenticated?.call();
         return handler.next(err);
       }
     }

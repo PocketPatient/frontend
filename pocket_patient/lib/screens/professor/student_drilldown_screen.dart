@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/student_drilldown.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/api_error.dart';
 import '../../widgets/student_summary_charts.dart';
 
 /// Week 14 Task 3 — per-student drill-down for professors. Same charts as
@@ -45,8 +46,8 @@ class _StudentDrilldownScreenState extends ConsumerState<StudentDrilldownScreen>
           .read(apiServiceProvider)
           .getStudentDrilldown(widget.courseId, widget.studentId);
       if (mounted) setState(() => _drilldown = result);
-    } catch (_) {
-      if (mounted) setState(() => _error = 'Could not load this student\'s analytics.');
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyErrorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
