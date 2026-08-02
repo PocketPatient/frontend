@@ -66,11 +66,14 @@ justification) is processed by Gemini per
 
 ## Data retention
 
-Case transcripts and scores are retained as education records for the
-duration of the course and per Rutgers' standard academic record retention
-policy. [Needs a real retention period — flagged for review; the backend
-has an archive script for sessions older than 3 years but that's an
-implementation detail, not a policy commitment yet.]
+Case transcripts, scores, and session data are retained for 3 years from
+the date of the session, matching PocketPatient's data archival
+configuration (`backend/scripts/archive_old_sessions.py`, `--years 3`
+default). After that period, sessions are archived and removed from
+active systems. This is currently our operational default, not a
+separate Rutgers-mandated period — if the university's own academic
+record retention policy requires a different window, that should
+supersede this default and this section should be updated to match.
 
 ## Your choices
 
@@ -95,8 +98,8 @@ changes before they take effect.
 
 ## Contact
 
-[Needs a real contact — course administrator or department email, flagged
-for review.]
+Privacy questions or requests regarding your data can be sent to
+tobiaat@rwjms.rutgers.edu.
 
 ---
 
@@ -114,9 +117,10 @@ for review.]
 
 ## Open items needing a human decision
 
-1. Real data retention period (currently just references an unused
-   archive-script implementation detail).
-2. Real contact email/address for privacy inquiries.
-3. Whether Rutgers' own institutional privacy policy should be
+1. Whether Rutgers' own institutional privacy policy should be
    linked/incorporated rather than PocketPatient having a fully standalone
    one.
+2. Whether Rutgers' academic record retention policy mandates a different
+   window than the 3-year operational default now stated above.
+3. Confirm tobiaat@rwjms.rutgers.edu is the right long-term contact
+   (vs. a course-specific alias) before this policy is published publicly.
