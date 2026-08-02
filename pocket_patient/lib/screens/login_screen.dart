@@ -143,12 +143,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               // Logo & title
               Center(
                 child: Container(
-                  width: 100,
-                  height: 100,
-                  padding: const EdgeInsets.all(18),
+                  width: 48,
+                  height: 48,
+                  padding: const EdgeInsets.all(9),
                   decoration: const BoxDecoration(
                     color: Color(0xFFCC0033),
-                    borderRadius: BorderRadius.all(Radius.circular(20)),
+                    borderRadius: BorderRadius.all(Radius.circular(10)),
                   ),
                   child: Image.asset('assets/icon/icon_foreground.png'),
                 ),

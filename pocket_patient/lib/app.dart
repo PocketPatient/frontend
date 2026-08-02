@@ -12,7 +12,8 @@ class App extends ConsumerWidget {
     return MaterialApp.router(
       title: kAppName,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFCC0033)),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFCC0033))
+            .copyWith(primary: const Color(0xFFCC0033)),
         useMaterial3: true,
       ),
       routerConfig: router,
