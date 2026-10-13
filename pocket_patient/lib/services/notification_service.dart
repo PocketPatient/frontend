@@ -26,13 +26,8 @@ class NotificationService {
   NotificationService({required this.container, required this.navigatorKey});
 
   Future<void> init() async {
-    // Request permission on first launch. iOS returns the live status here;
-    // Android 13+ shows the system prompt and reports the result too.
-    final settings = await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    // Do not prompt at launch. The contextual request happens only after a
+    // person turns on reminders in notification settings.
 
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_navigate);
@@ -48,17 +43,20 @@ class NotificationService {
 
     final token = await FirebaseMessaging.instance.getToken();
     if (token != null) await _registerToken(token);
+  }
 
-    // Notifications drive the entire async case model, so if the student
-    // declined, explain what they lose. init() runs before the first frame,
-    // so defer the banner until a navigator context exists.
+  /// Call from a user-initiated reminder setting, never at app launch.
+  Future<bool> requestPermissionForReminders() async {
+    final settings = await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
     final granted =
         settings.authorizationStatus == AuthorizationStatus.authorized ||
             settings.authorizationStatus == AuthorizationStatus.provisional;
-    if (!granted) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _showPermissionRationale());
-    }
+    if (!granted) _showPermissionRationale();
+    return granted;
   }
 
   /// Shown when notification permission was denied. Kept dependency-free —
@@ -126,7 +124,9 @@ class NotificationService {
     try {
       final api = container.read(apiServiceProvider);
       final session = await api.getSession(sessionId);
-      await container.read(sessionProvider(session.courseId).notifier).refresh();
+      await container
+          .read(sessionProvider(session.courseId).notifier)
+          .refresh();
     } catch (_) {}
   }
 

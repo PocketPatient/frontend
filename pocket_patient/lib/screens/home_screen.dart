@@ -55,6 +55,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            icon: const Icon(Icons.shield_outlined),
+            tooltip: 'Privacy and account',
+            onPressed: () => context.push('/privacy-settings'),
+          ),
+          IconButton(
             icon: const Icon(Icons.notifications_outlined),
             tooltip: 'Notification settings',
             onPressed: () => context.push('/notification-settings'),
@@ -62,8 +67,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
-            onPressed: () =>
-                ref.read(authNotifierProvider.notifier).signOut(),
+            onPressed: () => ref.read(authNotifierProvider.notifier).signOut(),
           ),
         ],
         bottom: TabBar(
@@ -77,7 +81,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ],
         ),
       ),
-      body: OfflineBannerScaffold(child: Column(children: [
+      body: OfflineBannerScaffold(
+          child: Column(children: [
         // Professor account pending verification banner
         if (isProfessor && user?.isVerified == false)
           Material(
@@ -175,7 +180,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
-
 class _CourseList extends StatelessWidget {
   final List<Course> courses;
   final bool isProfessor;
@@ -260,9 +264,8 @@ class _CourseCard extends ConsumerWidget {
         ? 0
         : (ref.watch(completedSessionsProvider(course.id)).valueOrNull ?? [])
             .length;
-    final session = isProfessor
-        ? null
-        : ref.watch(sessionProvider(course.id)).valueOrNull;
+    final session =
+        isProfessor ? null : ref.watch(sessionProvider(course.id)).valueOrNull;
     final hasActiveCase = session?.isActive == true;
     final waitLevel = session?.waitLevel ?? WaitLevel.none;
 
@@ -279,122 +282,123 @@ class _CourseCard extends ConsumerWidget {
             ? () => context.push('/course/${course.id}', extra: course)
             : () => context.push('/chat/${course.id}', extra: course),
         child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    course.title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                if (!course.isActive)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      course.title,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                    child: Text('Inactive',
-                        style: TextStyle(
-                            fontSize: 11, color: Colors.grey[600])),
                   ),
-              ],
-            ),
-            if (course.semester != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                course.semester!,
-                style: TextStyle(color: Colors.grey[600], fontSize: 13),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                // Class code (professor sees it to share)
-                if (isProfessor) ...[
-                  _InfoChip(
-                    icon: Icons.tag,
-                    label: course.classCode,
-                    onTap: () {
-                      // Copy to clipboard
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text(
-                                '${course.classCode} copied to clipboard')),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _InfoChip(
-                    icon: Icons.people_outline,
-                    label: '${course.studentCount} student${course.studentCount == 1 ? '' : 's'}',
-                  ),
-                ] else ...[
-                  _InfoChip(
-                    icon: Icons.layers_outlined,
-                    label: releasedCount == 0
-                        ? 'No units active'
-                        : '$releasedCount unit${releasedCount == 1 ? '' : 's'} active',
-                    color: releasedCount > 0 ? Colors.green : Colors.grey,
-                  ),
-                  const SizedBox(width: 8),
-                  if (hasActiveCase) ...[
-                    const _InfoChip(
-                      icon: Icons.chat_bubble_outline,
-                      label: 'Case in progress',
-                      color: Colors.orange,
-                    ),
-                    if (waitLevel != WaitLevel.none) ...[
-                      const SizedBox(width: 8),
-                      _WaitDot(level: waitLevel),
-                    ],
-                  ] else
-                    _InfoChip(
-                      icon: Icons.check_circle_outline,
-                      label: completedCount == 0
-                          ? 'No cases done'
-                          : '$completedCount completed',
-                      color: completedCount > 0 ? Colors.blue : Colors.grey,
-                      onTap: completedCount > 0
-                          ? () => context.push('/case-history/${course.id}',
-                              extra: course)
-                          : null,
+                  if (!course.isActive)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text('Inactive',
+                          style:
+                              TextStyle(fontSize: 11, color: Colors.grey[600])),
                     ),
                 ],
+              ),
+              if (course.semester != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  course.semester!,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
               ],
-            ),
-          // Info message for students
-          if (!isProfessor) ...[
-            const SizedBox(height: 10),
-            Text(
-              hasActiveCase
-                  ? (waitLevel == WaitLevel.red
-                      ? 'Your patient is waiting.'
-                      : 'Case in progress — tap to continue.')
-                  : releasedCount == 0
-                      ? 'No active units — check back later.'
-                      : 'Your patient will reach out soon.',
-              style: TextStyle(
-                  color: waitLevel == WaitLevel.red
-                      ? Colors.red[700]
-                      : Colors.grey[600],
-                  fontSize: 12,
-                  fontWeight: waitLevel == WaitLevel.red
-                      ? FontWeight.w600
-                      : FontWeight.normal,
-                  fontStyle: FontStyle.italic),
-            ),
-          ],
-          ],
-        ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  // Class code (professor sees it to share)
+                  if (isProfessor) ...[
+                    _InfoChip(
+                      icon: Icons.tag,
+                      label: course.classCode,
+                      onTap: () {
+                        // Copy to clipboard
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text(
+                                  '${course.classCode} copied to clipboard')),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _InfoChip(
+                      icon: Icons.people_outline,
+                      label:
+                          '${course.studentCount} student${course.studentCount == 1 ? '' : 's'}',
+                    ),
+                  ] else ...[
+                    _InfoChip(
+                      icon: Icons.layers_outlined,
+                      label: releasedCount == 0
+                          ? 'No units active'
+                          : '$releasedCount unit${releasedCount == 1 ? '' : 's'} active',
+                      color: releasedCount > 0 ? Colors.green : Colors.grey,
+                    ),
+                    const SizedBox(width: 8),
+                    if (hasActiveCase) ...[
+                      const _InfoChip(
+                        icon: Icons.chat_bubble_outline,
+                        label: 'Case in progress',
+                        color: Colors.orange,
+                      ),
+                      if (waitLevel != WaitLevel.none) ...[
+                        const SizedBox(width: 8),
+                        _WaitDot(level: waitLevel),
+                      ],
+                    ] else
+                      _InfoChip(
+                        icon: Icons.check_circle_outline,
+                        label: completedCount == 0
+                            ? 'No cases done'
+                            : '$completedCount completed',
+                        color: completedCount > 0 ? Colors.blue : Colors.grey,
+                        onTap: completedCount > 0
+                            ? () => context.push('/case-history/${course.id}',
+                                extra: course)
+                            : null,
+                      ),
+                  ],
+                ],
+              ),
+              // Info message for students
+              if (!isProfessor) ...[
+                const SizedBox(height: 10),
+                Text(
+                  hasActiveCase
+                      ? (waitLevel == WaitLevel.red
+                          ? 'Your patient is waiting.'
+                          : 'Case in progress — tap to continue.')
+                      : releasedCount == 0
+                          ? 'No active units — check back later.'
+                          : 'Your patient will reach out soon.',
+                  style: TextStyle(
+                      color: waitLevel == WaitLevel.red
+                          ? Colors.red[700]
+                          : Colors.grey[600],
+                      fontSize: 12,
+                      fontWeight: waitLevel == WaitLevel.red
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      fontStyle: FontStyle.italic),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

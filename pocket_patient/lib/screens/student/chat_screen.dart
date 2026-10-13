@@ -9,10 +9,12 @@ import '../../models/chat_session.dart';
 import '../../models/course.dart';
 import '../../models/diagnosis_result.dart';
 import '../../providers/completed_sessions_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/units_provider.dart';
 import '../../utils/api_error.dart';
 import '../../widgets/offline_banner.dart';
+import '../privacy_settings_screen.dart';
 import 'diagnosis_sheet.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -38,6 +40,46 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Optimistic / transient send state
   String? _pendingContent; // student message being sent right now
   bool _sendError = false;
+  bool _creationRequested = false;
+  bool _reviewingConsent = false;
+
+  Future<void> _startNewSession() async {
+    _creationRequested = true;
+    await ref
+        .read(sessionProvider(widget.course.id).notifier)
+        .startNewSession();
+    if (mounted && !ref.read(sessionProvider(widget.course.id)).hasError) {
+      _creationRequested = false;
+    }
+  }
+
+  void _retrySession() {
+    if (_creationRequested) {
+      unawaited(_startNewSession());
+    } else {
+      ref.invalidate(sessionProvider(widget.course.id));
+    }
+  }
+
+  Future<void> _reviewConsent() async {
+    setState(() => _reviewingConsent = true);
+    ref.invalidate(aiConsentProvider);
+    try {
+      await context.push('/privacy-settings');
+      if (!mounted) return;
+      final consent = await ref.refresh(aiConsentProvider.future);
+      if (!mounted) return;
+      if (consent.active) _retrySession();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyErrorMessage(error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _reviewingConsent = false);
+    }
+  }
 
   String get _pendingMsgPrefsKey => 'pending_msg_${widget.course.id}';
   String get _lastReadPrefsKey => 'last_read_${widget.course.id}';
@@ -111,11 +153,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       });
       _scrollToBottom();
       unawaited(_clearPendingMessage());
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
         _sendError = true;
       });
+      if (isAiConsentRequired(error)) {
+        ref.invalidate(aiConsentProvider);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Please review the AI data-sharing consent before continuing.'),
+        ));
+        context.push('/privacy-settings');
+      }
     }
   }
 
@@ -254,8 +304,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
               Text(
                 widget.course.title,
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w400),
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
                 overflow: TextOverflow.ellipsis,
               ),
             ],
@@ -287,14 +337,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
         body: OfflineBannerScaffold(
           child: sessionAsync.when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => _ErrorState(
                 error: e,
-                onRetry: () =>
-                    ref.invalidate(sessionProvider(widget.course.id))),
+                onRetry: _retrySession,
+                onReviewConsent: _reviewingConsent ? null : _reviewConsent),
             data: (session) => session == null
-                ? _NoSessionState(courseId: widget.course.id)
+                ? _NoSessionState(
+                    courseId: widget.course.id,
+                    onCreate: _startNewSession,
+                  )
                 : _ChatBody(
                     session: session,
                     bubbleKeys: _bubbleKeys,
@@ -308,9 +360,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         kDebugMode ? () => _send(instant: true) : null,
                     onRetry: _retry,
                     onRefresh: _refresh,
-                    onDiagnose: session.isActive
-                        ? _openDiagnosisSheet
-                        : null,
+                    onReportMessage: _showReportDialog,
+                    onDiagnose: session.isActive ? _openDiagnosisSheet : null,
                     onViewResults: session.isDiagnosed
                         ? () => context.push(
                               '/diagnosis-result/${widget.course.id}',
@@ -324,9 +375,82 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  Future<void> _showReportDialog(
+      ChatSession session, ChatMessage message) async {
+    String reason = 'Inappropriate or unsafe response';
+    final comment = TextEditingController();
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Report AI response'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                  'Report content that is unsafe, offensive, inaccurate, or otherwise concerning.'),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: reason,
+                items: const [
+                  'Inappropriate or unsafe response',
+                  'Medical misinformation',
+                  'Offensive content',
+                  'Other',
+                ]
+                    .map((value) =>
+                        DropdownMenuItem(value: value, child: Text(value)))
+                    .toList(),
+                onChanged: (value) => setDialogState(() => reason = value!),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: comment,
+                maxLines: 3,
+                decoration:
+                    const InputDecoration(labelText: 'Optional details'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Send report')),
+          ],
+        ),
+      ),
+    );
+    if (submitted != true) {
+      comment.dispose();
+      return;
+    }
+    try {
+      await ref.read(apiServiceProvider).reportAiResponse(
+            messageId: message.id,
+            reason: _reportReasonForLabel(reason),
+            comment: comment.text,
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Thank you. Your report was sent for review.'),
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Your report was not sent. Please try again.'),
+        ));
+      }
+    } finally {
+      comment.dispose();
+    }
+  }
+
   void _showCaseInfoSheet(BuildContext context) {
-    final session =
-        ref.read(sessionProvider(widget.course.id)).valueOrNull;
+    final session = ref.read(sessionProvider(widget.course.id)).valueOrNull;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -359,8 +483,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             if (widget.course.semester != null) ...[
               const SizedBox(height: 4),
               Text(widget.course.semester!,
-                  style:
-                      TextStyle(color: Colors.grey[600], fontSize: 13)),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13)),
             ],
             const SizedBox(height: 16),
             _InfoRow(
@@ -439,6 +562,8 @@ class _ChatBody extends StatelessWidget {
   final VoidCallback? onSendInstant;
   final VoidCallback onRetry;
   final Future<void> Function() onRefresh;
+  final Future<void> Function(ChatSession session, ChatMessage message)
+      onReportMessage;
   final Future<void> Function()? onDiagnose;
   final VoidCallback? onViewResults;
   final Map<String, GlobalKey> bubbleKeys;
@@ -455,6 +580,7 @@ class _ChatBody extends StatelessWidget {
     this.onSendInstant,
     required this.onRetry,
     required this.onRefresh,
+    required this.onReportMessage,
     this.onDiagnose,
     this.onViewResults,
   });
@@ -478,8 +604,8 @@ class _ChatBody extends StatelessWidget {
     final items = <Widget>[];
     DateTime? lastDay;
     for (final message in confirmed) {
-      final day =
-          DateTime(message.sentAt.year, message.sentAt.month, message.sentAt.day);
+      final day = DateTime(
+          message.sentAt.year, message.sentAt.month, message.sentAt.day);
       if (lastDay == null || day != lastDay) {
         items.add(_DateSeparator(date: day));
         lastDay = day;
@@ -487,6 +613,8 @@ class _ChatBody extends StatelessWidget {
       items.add(_BubbleTile(
         key: bubbleKeys.putIfAbsent(message.id, () => GlobalKey()),
         message: message,
+        onReport:
+            message.isPatient ? () => onReportMessage(session, message) : null,
       ));
     }
     if (showPending) items.add(_PendingBubble(content: pendingContent!));
@@ -544,7 +672,18 @@ class _PatientInfoCard extends StatelessWidget {
   const _PatientInfoCard({required this.session});
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec'
   ];
 
   @override
@@ -579,6 +718,15 @@ class _PatientInfoCard extends StatelessWidget {
                   session.patientName,
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Educational simulated patient - not medical advice',
+                  style: TextStyle(
+                    color: Color(0xFF6B4A00),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -674,8 +822,9 @@ class _DiagnosedBar extends StatelessWidget {
 
 class _NoSessionState extends ConsumerStatefulWidget {
   final String courseId;
+  final VoidCallback onCreate;
 
-  const _NoSessionState({required this.courseId});
+  const _NoSessionState({required this.courseId, required this.onCreate});
 
   @override
   ConsumerState<_NoSessionState> createState() => _NoSessionStateState();
@@ -741,8 +890,8 @@ class _NoSessionStateState extends ConsumerState<_NoSessionState> {
                   : const Icon(Icons.refresh),
               label: const Text('Check for new case'),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
             ),
           ),
@@ -750,9 +899,7 @@ class _NoSessionStateState extends ConsumerState<_NoSessionState> {
             const SizedBox(height: 12),
             Center(
               child: TextButton.icon(
-                onPressed: () => ref
-                    .read(sessionProvider(widget.courseId).notifier)
-                    .startNewSession(),
+                onPressed: widget.onCreate,
                 icon: const Icon(Icons.bug_report_outlined, size: 16),
                 label: const Text('Dev: force-create new case'),
               ),
@@ -767,20 +914,33 @@ class _NoSessionStateState extends ConsumerState<_NoSessionState> {
 class _ErrorState extends StatelessWidget {
   final Object error;
   final VoidCallback onRetry;
+  final VoidCallback? onReviewConsent;
 
-  const _ErrorState({required this.error, required this.onRetry});
+  const _ErrorState({
+    required this.error,
+    required this.onRetry,
+    required this.onReviewConsent,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(friendlyErrorMessage(error),
-              style: TextStyle(color: Colors.grey[600])),
-          const SizedBox(height: 12),
-          OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(friendlyErrorMessage(error),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[600])),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: isAiConsentRequired(error) ? onReviewConsent : onRetry,
+              child: Text(
+                  isAiConsentRequired(error) ? 'Review AI consent' : 'Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -796,10 +956,27 @@ class _DateSeparator extends StatelessWidget {
   const _DateSeparator({required this.date});
 
   static const _weekdays = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday'
   ];
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec'
   ];
 
   @override
@@ -831,8 +1008,9 @@ class _DateSeparator extends StatelessWidget {
 
 class _BubbleTile extends StatelessWidget {
   final ChatMessage message;
+  final VoidCallback? onReport;
 
-  const _BubbleTile({super.key, required this.message});
+  const _BubbleTile({super.key, required this.message, this.onReport});
 
   @override
   Widget build(BuildContext context) {
@@ -841,6 +1019,7 @@ class _BubbleTile extends StatelessWidget {
       isPatient: message.isPatient,
       timestamp: _relativeTime(message.sentAt),
       showCheck: !message.isPatient,
+      onReport: onReport,
     );
   }
 }
@@ -868,6 +1047,7 @@ class _Bubble extends StatelessWidget {
   final String timestamp;
   final bool showCheck;
   final bool dimmed;
+  final VoidCallback? onReport;
 
   const _Bubble({
     required this.content,
@@ -875,6 +1055,7 @@ class _Bubble extends StatelessWidget {
     required this.timestamp,
     required this.showCheck,
     this.dimmed = false,
+    this.onReport,
   });
 
   @override
@@ -913,17 +1094,14 @@ class _Bubble extends StatelessWidget {
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(18),
                         topRight: const Radius.circular(18),
-                        bottomLeft:
-                            Radius.circular(isPatient ? 4 : 18),
-                        bottomRight:
-                            Radius.circular(isPatient ? 18 : 4),
+                        bottomLeft: Radius.circular(isPatient ? 4 : 18),
+                        bottomRight: Radius.circular(isPatient ? 18 : 4),
                       ),
                     ),
                     child: Text(
                       content,
                       style: TextStyle(
-                        color:
-                            isPatient ? Colors.black87 : Colors.white,
+                        color: isPatient ? Colors.black87 : Colors.white,
                         fontSize: 14,
                       ),
                     ),
@@ -934,13 +1112,23 @@ class _Bubble extends StatelessWidget {
                     children: [
                       Text(
                         timestamp,
-                        style: TextStyle(
-                            color: Colors.grey[600], fontSize: 11),
+                        style: TextStyle(color: Colors.grey[600], fontSize: 11),
                       ),
                       if (showCheck) ...[
                         const SizedBox(width: 3),
-                        Icon(Icons.check,
-                            size: 11, color: Colors.grey[600]),
+                        Icon(Icons.check, size: 11, color: Colors.grey[600]),
+                      ],
+                      if (onReport != null) ...[
+                        const SizedBox(width: 4),
+                        IconButton(
+                          onPressed: onReport,
+                          icon: const Icon(Icons.flag_outlined, size: 16),
+                          tooltip: 'Report AI response',
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints:
+                              const BoxConstraints(minWidth: 24, minHeight: 24),
+                        ),
                       ],
                     ],
                   ),
@@ -968,8 +1156,7 @@ class _RetryRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           Text('Failed to send — ',
-              style:
-                  TextStyle(color: Colors.red[400], fontSize: 12)),
+              style: TextStyle(color: Colors.red[400], fontSize: 12)),
           GestureDetector(
             onTap: onRetry,
             child: Text(
@@ -1000,13 +1187,12 @@ class _AwaitingBubble extends StatelessWidget {
           CircleAvatar(
             radius: 16,
             backgroundColor: Colors.grey[300],
-            child: const Icon(Icons.person_outline,
-                size: 18, color: Colors.white),
+            child:
+                const Icon(Icons.person_outline, size: 18, color: Colors.white),
           ),
           const SizedBox(width: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.grey[200],
               borderRadius: const BorderRadius.only(
@@ -1082,34 +1268,29 @@ class _InputBar extends StatelessWidget {
                 textInputAction: TextInputAction.send,
                 onSubmitted: enabled ? (_) => onSend() : null,
                 decoration: InputDecoration(
-                  hintText: enabled
-                      ? 'Type a message…'
-                      : 'Waiting for patient…',
-                  hintStyle:
-                      TextStyle(color: Colors.grey[600], fontSize: 14),
+                  hintText:
+                      enabled ? 'Type a message…' : 'Waiting for patient…',
+                  hintStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
                   filled: true,
-                  fillColor:
-                      enabled ? Colors.white : Colors.grey[100],
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                  fillColor: enabled ? Colors.white : Colors.grey[100],
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
-                    borderSide:
-                        BorderSide(color: Colors.grey[300]!),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
                   ),
                   disabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
-                    borderSide:
-                        BorderSide(color: Colors.grey[200]!),
+                    borderSide: BorderSide(color: Colors.grey[200]!),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
-                    borderSide: const BorderSide(
-                        color: Color(0xFFCC0033), width: 1.5),
+                    borderSide:
+                        const BorderSide(color: Color(0xFFCC0033), width: 1.5),
                   ),
                 ),
               ),
@@ -1119,11 +1300,8 @@ class _InputBar extends StatelessWidget {
               FloatingActionButton.small(
                 heroTag: 'chat_send_instant',
                 onPressed: enabled ? onSendInstant : null,
-                backgroundColor: enabled
-                    ? Colors.amber[700]
-                    : Colors.grey[300],
-                foregroundColor:
-                    enabled ? Colors.white : Colors.grey[600],
+                backgroundColor: enabled ? Colors.amber[700] : Colors.grey[300],
+                foregroundColor: enabled ? Colors.white : Colors.grey[600],
                 elevation: enabled ? 2 : 0,
                 tooltip: 'Dev: instant reply (~10s)',
                 child: const Icon(Icons.bolt),
@@ -1133,11 +1311,9 @@ class _InputBar extends StatelessWidget {
             FloatingActionButton.small(
               heroTag: 'chat_send',
               onPressed: enabled ? onSend : null,
-              backgroundColor: enabled
-                  ? const Color(0xFFCC0033)
-                  : Colors.grey[300],
-              foregroundColor:
-                  enabled ? Colors.white : Colors.grey[600],
+              backgroundColor:
+                  enabled ? const Color(0xFFCC0033) : Colors.grey[300],
+              foregroundColor: enabled ? Colors.white : Colors.grey[600],
               elevation: enabled ? 2 : 0,
               child: const Icon(Icons.send),
             ),
@@ -1196,3 +1372,10 @@ String _relativeTime(DateTime dt) {
   final period = dt.hour < 12 ? 'AM' : 'PM';
   return '$hour:$min $period';
 }
+
+String _reportReasonForLabel(String label) => switch (label) {
+      'Medical misinformation' => 'inaccurate',
+      'Offensive content' => 'inappropriate',
+      'Other' => 'other',
+      _ => 'harmful',
+    };

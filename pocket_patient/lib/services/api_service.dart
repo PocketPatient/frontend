@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../config/constants.dart';
 import '../models/auth_response.dart';
+import '../models/ai_consent_status.dart';
 import '../models/chat_session.dart';
 import '../models/class_summary.dart';
 import '../models/course.dart';
@@ -22,7 +23,7 @@ class ApiService {
     required AuthService authService,
     Dio? dio,
     void Function()? onUnauthenticated,
-  })  : _dio = dio ??
+  }) : _dio = dio ??
             Dio(BaseOptions(
               baseUrl: kApiBaseUrl,
               connectTimeout: const Duration(seconds: 10),
@@ -72,6 +73,40 @@ class ApiService {
     });
   }
 
+  /// Reads server-authoritative permission to share case content with Gemini.
+  Future<AiConsentStatus> getAiConsent() async {
+    final resp = await _dio.get('/users/me/ai-consent');
+    return AiConsentStatus.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<AiConsentStatus> acceptAiConsent() async {
+    final resp = await _dio.put('/users/me/ai-consent');
+    return AiConsentStatus.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<void> revokeAiConsent() => _dio.delete('/users/me/ai-consent');
+
+  /// Google Play requires an in-app way to flag AI-generated responses.
+  Future<void> reportAiResponse({
+    required String messageId,
+    required String reason,
+    String? comment,
+  }) async {
+    await _dio.post('/reports/ai-response', data: {
+      'message_id': messageId,
+      'reason': reason,
+      if (comment != null && comment.trim().isNotEmpty)
+        'comment': comment.trim(),
+    });
+  }
+
+  /// Permanently removes the signed-in account and its in-scope data.
+  Future<int> deleteMyAccount() async {
+    final response =
+        await _dio.delete('/users/me', data: {'confirm': 'DELETE'});
+    return response.statusCode ?? 204;
+  }
+
   // -------------------------------------------------------------------------
   // Courses
   // -------------------------------------------------------------------------
@@ -79,9 +114,7 @@ class ApiService {
   Future<List<Course>> getCourses() async {
     final resp = await _dio.get('/courses');
     final list = resp.data as List<dynamic>;
-    return list
-        .map((e) => Course.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return list.map((e) => Course.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<Course> createCourse(String title, String semester) async {
@@ -118,8 +151,7 @@ class ApiService {
 
   Future<DiseaseDocumentConfirmResult> confirmDiseaseDocument(
       String courseId) async {
-    final resp =
-        await _dio.post('/courses/$courseId/disease-document/confirm');
+    final resp = await _dio.post('/courses/$courseId/disease-document/confirm');
     return DiseaseDocumentConfirmResult.fromJson(
         resp.data as Map<String, dynamic>);
   }
@@ -136,14 +168,12 @@ class ApiService {
   }
 
   Future<Unit> releaseUnit(String courseId, String unitId) async {
-    final resp =
-        await _dio.put('/courses/$courseId/units/$unitId/release');
+    final resp = await _dio.put('/courses/$courseId/units/$unitId/release');
     return Unit.fromJson(resp.data as Map<String, dynamic>);
   }
 
   Future<Unit> closeUnit(String courseId, String unitId) async {
-    final resp =
-        await _dio.put('/courses/$courseId/units/$unitId/close');
+    final resp = await _dio.put('/courses/$courseId/units/$unitId/close');
     return Unit.fromJson(resp.data as Map<String, dynamic>);
   }
 
@@ -168,8 +198,8 @@ class ApiService {
   /// Returns the active session for [courseId], or throws a 404 DioException
   /// if the student has no active session in that course.
   Future<ChatSession> getActiveSession(String courseId) async {
-    final resp =
-        await _dio.get('/sessions/active', queryParameters: {'course_id': courseId});
+    final resp = await _dio
+        .get('/sessions/active', queryParameters: {'course_id': courseId});
     return ChatSession.fromJson(resp.data as Map<String, dynamic>);
   }
 
@@ -253,7 +283,11 @@ class ApiService {
     int pageSize = 100,
   }) async {
     final resp = await _dio.get('/analytics/professor/student/$studentId',
-        queryParameters: {'course_id': courseId, 'page': page, 'page_size': pageSize});
+        queryParameters: {
+          'course_id': courseId,
+          'page': page,
+          'page_size': pageSize
+        });
     return StudentDrilldown.fromJson(resp.data as Map<String, dynamic>);
   }
 

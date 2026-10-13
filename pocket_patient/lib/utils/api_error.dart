@@ -1,5 +1,14 @@
 import 'package:dio/dio.dart';
 
+bool isAiConsentRequired(Object error) {
+  if (error is! DioException || error.response?.statusCode != 403) return false;
+  final data = error.response?.data;
+  if (data is! Map) return false;
+  final detail = data['detail'];
+  return data['code'] == 'AI_CONSENT_REQUIRED' ||
+      (detail is Map && detail['code'] == 'AI_CONSENT_REQUIRED');
+}
+
 /// Maps an error from an API call to a user-facing message, consistent
 /// across every screen (Week 17 Task 1 — error state audit).
 ///
@@ -9,6 +18,9 @@ import 'package:dio/dio.dart';
 /// see it, the user is already on their way out. This is the fallback for
 /// everything else.
 String friendlyErrorMessage(Object error) {
+  if (isAiConsentRequired(error)) {
+    return 'Review and accept AI data-sharing consent to use virtual patients.';
+  }
   if (error is DioException) {
     final status = error.response?.statusCode;
     switch (status) {

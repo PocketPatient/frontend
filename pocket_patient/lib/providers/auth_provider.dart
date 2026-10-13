@@ -15,6 +15,7 @@ import '../screens/email_verification_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/notification_settings_screen.dart';
+import '../screens/privacy_settings_screen.dart';
 import '../screens/professor/course_management_screen.dart';
 import '../screens/professor/create_course_screen.dart';
 import '../screens/professor/disease_upload_screen.dart';
@@ -194,10 +195,12 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     if (current == null) return;
     await ref.read(apiServiceProvider).updateNotificationPreferences(
           pushEnabled: pushEnabled,
-          quietHoursStart:
-              clearQuietHours || quietHoursStart == null ? null : formatTimeOfDayForApi(quietHoursStart),
-          quietHoursEnd:
-              clearQuietHours || quietHoursEnd == null ? null : formatTimeOfDayForApi(quietHoursEnd),
+          quietHoursStart: clearQuietHours || quietHoursStart == null
+              ? null
+              : formatTimeOfDayForApi(quietHoursStart),
+          quietHoursEnd: clearQuietHours || quietHoursEnd == null
+              ? null
+              : formatTimeOfDayForApi(quietHoursEnd),
         );
     state = AsyncData(current.copyWith(
       pushEnabled: pushEnabled,
@@ -223,7 +226,9 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     final idToken = await firebaseUser.getIdToken(true);
     final authResp = await ref.read(apiServiceProvider).login(idToken!);
     await ref.read(authServiceProvider).writeToken(authResp.accessToken);
-    await ref.read(authServiceProvider).writeRefreshToken(authResp.refreshToken);
+    await ref
+        .read(authServiceProvider)
+        .writeRefreshToken(authResp.refreshToken);
     final user = await ref.read(apiServiceProvider).getMe();
     // Persist the user ID so the refresh interceptor can detect cross-account
     // token mixing (e.g. access token for user A, refresh token for user B).
@@ -267,8 +272,7 @@ class RouterNotifier extends ChangeNotifier {
     if (authState.isLoading) return null;
 
     final loc = state.matchedLocation;
-    final verificationPending =
-        _ref.read(emailVerificationPendingProvider);
+    final verificationPending = _ref.read(emailVerificationPendingProvider);
 
     // Awaiting email verification — lock to that screen.
     if (verificationPending) {
@@ -283,9 +287,7 @@ class RouterNotifier extends ChangeNotifier {
     if (user.role == null) {
       return loc == '/role-selection' ? null : '/role-selection';
     }
-    if (loc == '/login' ||
-        loc == '/role-selection' ||
-        loc == '/verify-email') {
+    if (loc == '/login' || loc == '/role-selection' || loc == '/verify-email') {
       return '/home';
     }
     // Any other authenticated route is allowed through as-is.
@@ -318,6 +320,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/notification-settings',
           builder: (_, __) => const NotificationSettingsScreen()),
+      GoRoute(
+          path: '/privacy-settings',
+          builder: (_, __) => const PrivacySettingsScreen()),
       GoRoute(path: '/enroll', builder: (_, __) => const EnrollScreen()),
       GoRoute(
           path: '/create-course',

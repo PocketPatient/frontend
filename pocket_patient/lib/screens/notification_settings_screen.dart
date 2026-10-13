@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../providers/auth_provider.dart';
 
 /// Week 15 Task 2 — push toggle + quiet hours. Seeds its fields from the
@@ -31,7 +32,8 @@ class _NotificationSettingsScreenState
   }
 
   Future<void> _pickTime(bool isStart) async {
-    final initial = (isStart ? _quietStart : _quietEnd) ?? const TimeOfDay(hour: 22, minute: 0);
+    final initial = (isStart ? _quietStart : _quietEnd) ??
+        const TimeOfDay(hour: 22, minute: 0);
     final picked = await showTimePicker(context: context, initialTime: initial);
     if (picked == null) return;
     setState(() {
@@ -50,18 +52,45 @@ class _NotificationSettingsScreenState
     });
   }
 
+  Future<void> _setPushEnabled(bool enabled) async {
+    if (!enabled) {
+      setState(() => _pushEnabled = false);
+      return;
+    }
+    // The system prompt follows an explicit user action, rather than launch.
+    final permission = await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    final granted =
+        permission.authorizationStatus == AuthorizationStatus.authorized ||
+            permission.authorizationStatus == AuthorizationStatus.provisional;
+    if (!mounted) return;
+    setState(() => _pushEnabled = granted);
+    if (!granted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'Notification permission is off. Enable it in device settings to receive reminders.'),
+      ));
+    }
+  }
+
   Future<void> _save() async {
     // Backend requires both-or-neither on quiet hours.
     if ((_quietStart == null) != (_quietEnd == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Set both a start and end time, or clear both.')),
+        const SnackBar(
+            content: Text('Set both a start and end time, or clear both.')),
       );
       return;
     }
 
     setState(() => _saving = true);
     try {
-      await ref.read(authNotifierProvider.notifier).updateNotificationPreferences(
+      await ref
+          .read(authNotifierProvider.notifier)
+          .updateNotificationPreferences(
             pushEnabled: _pushEnabled,
             quietHoursStart: _quietStart,
             quietHoursEnd: _quietEnd,
@@ -75,7 +104,8 @@ class _NotificationSettingsScreenState
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save preferences. Try again.')),
+          const SnackBar(
+              content: Text('Could not save preferences. Try again.')),
         );
       }
     } finally {
@@ -116,7 +146,7 @@ class _NotificationSettingsScreenState
                   'New patient messages, nudges, and case assignments.'),
               value: _pushEnabled,
               activeThumbColor: const Color(0xFFCC0033),
-              onChanged: (v) => setState(() => _pushEnabled = v),
+              onChanged: _setPushEnabled,
             ),
           ),
           const SizedBox(height: 16),
@@ -175,12 +205,15 @@ class _NotificationSettingsScreenState
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFCC0033),
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
               ),
               child: _saving
                   ? const SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
                   : const Text('Save'),
             ),
           ),
