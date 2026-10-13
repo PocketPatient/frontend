@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/ai_consent_status.dart';
 import '../providers/auth_provider.dart';
+import '../services/apple_auth_service.dart';
 
 final aiConsentProvider = FutureProvider<AiConsentStatus>((ref) async {
   return ref.read(apiServiceProvider).getAiConsent();
@@ -74,12 +76,21 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
 
     setState(() => _deleting = true);
     try {
+      await ref.read(appleAuthServiceProvider).revokeBeforeDeletion();
       final status = await ref.read(apiServiceProvider).deleteMyAccount();
       await ref.read(authNotifierProvider.notifier).signOut();
       if (mounted && status == 202) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text(
               'Your app data was deleted. Sign-in identity cleanup is retrying automatically.'),
+        ));
+      }
+    } on FirebaseAuthException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(isAppleSignInCancelled(error)
+              ? 'Deletion cancelled. Your account was not deleted.'
+              : 'Could not revoke Apple access. Your account was not deleted. Please try again.'),
         ));
       }
     } on DioException {

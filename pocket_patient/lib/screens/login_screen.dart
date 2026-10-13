@@ -1,4 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
@@ -42,8 +44,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   String _friendlyError(Object error) {
+    if (error is DioException) {
+      final status = error.response?.statusCode;
+      final data = error.response?.data;
+      final detail = data is Map ? data['detail'] : null;
+      if (status == 409) {
+        return 'This email already has an account. Use your original sign-in method.';
+      }
+      if (status == 403 && detail == 'Must use a Rutgers email address') {
+        return 'This server restricts access to Rutgers email addresses. '
+            'Apple private email addresses are not enabled here.';
+      }
+      if (status == 403) {
+        return 'This account cannot sign in. Check your email verification or contact support.';
+      }
+    }
     if (error is FirebaseAuthException) {
       switch (error.code) {
+        case 'operation-not-allowed':
+          return 'This sign-in method is not enabled yet. Please contact support.';
+        case 'account-exists-with-different-credential':
+          return 'This email already has an account. Use your original sign-in method.';
         case 'user-not-found':
           return 'No account found with that email.';
         case 'wrong-password':
@@ -82,7 +103,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _displayNameCtrl.text.trim(),
       );
     } else {
-      await notifier.signInWithEmail(_emailCtrl.text.trim(), _passwordCtrl.text);
+      await notifier.signInWithEmail(
+          _emailCtrl.text.trim(), _passwordCtrl.text);
     }
   }
 
@@ -190,6 +212,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   backgroundColor: Colors.white,
                 ),
               ),
+              if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) ...[
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: isLoading
+                      ? null
+                      : () => ref
+                          .read(authNotifierProvider.notifier)
+                          .signInWithApple(),
+                  icon: const Icon(Icons.apple, size: 24),
+                  label: const Text('Sign in with Apple'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
 
               // Divider
@@ -271,7 +313,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ),
                       validator: (v) {
-                        if (v == null || v.isEmpty) return 'Enter your password';
+                        if (v == null || v.isEmpty) {
+                          return 'Enter your password';
+                        }
                         if (_isRegistering && v.length < 8) {
                           return 'Password must be at least 8 characters';
                         }

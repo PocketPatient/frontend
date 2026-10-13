@@ -29,6 +29,7 @@ import '../screens/student/chat_screen.dart';
 import '../screens/student/diagnosis_result_screen.dart';
 import '../screens/student/enroll_screen.dart';
 import '../services/api_service.dart';
+import '../services/apple_auth_service.dart';
 import '../services/auth_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -36,6 +37,8 @@ import '../services/auth_service.dart';
 // ---------------------------------------------------------------------------
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+final appleAuthServiceProvider = Provider<AppleAuthService>(
+    (ref) => AppleAuthService(FirebaseAuth.instance));
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   return ApiService(
@@ -61,6 +64,19 @@ final authNotifierProvider =
     AsyncNotifierProvider<AuthNotifier, AppUser?>(AuthNotifier.new);
 
 class AuthNotifier extends AsyncNotifier<AppUser?> {
+  Future<void> signInWithApple() async {
+    if (state.isLoading) return;
+    state = const AsyncLoading();
+    try {
+      final user = await ref.read(appleAuthServiceProvider).signIn();
+      state = AsyncData(await _exchangeFirebaseToken(user));
+    } catch (error, stack) {
+      state = isAppleSignInCancelled(error)
+          ? const AsyncData(null)
+          : AsyncError(error, stack);
+    }
+  }
+
   @override
   Future<AppUser?> build() async {
     final hasToken = await ref.read(authServiceProvider).hasToken();
