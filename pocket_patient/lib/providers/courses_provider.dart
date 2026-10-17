@@ -90,15 +90,24 @@ class CoursesNotifier extends AsyncNotifier<List<Course>> {
   Future<Course> createCourse(String title, String semester) async {
     final course =
         await ref.read(apiServiceProvider).createCourse(title, semester);
-    state = AsyncData([...state.valueOrNull ?? [], course]);
+    await _upsert(course);
     return course;
   }
 
   /// Student: join a course by class code.
   Future<Course> joinCourse(String classCode) async {
     final course = await ref.read(apiServiceProvider).joinCourse(classCode);
-    state = AsyncData([...state.valueOrNull ?? [], course]);
+    await _upsert(course);
     return course;
+  }
+
+  /// Insert [course], or replace the entry with the same id. A refresh can
+  /// land between the API call and this update (the list may already contain
+  /// the course), so a blind append would show it twice.
+  Future<void> _upsert(Course course) async {
+    final next = upsertCourse(state.valueOrNull ?? const [], course);
+    state = AsyncData(next);
+    await _writeCache(next);
   }
 
   /// Extract a user-friendly message from a DioException for course operations.
@@ -116,4 +125,12 @@ class CoursesNotifier extends AsyncNotifier<List<Course>> {
     }
     return 'Something went wrong. Please try again.';
   }
+}
+
+/// Returns [courses] with [course] added, or replacing the entry that has the
+/// same id (keeps its position).
+List<Course> upsertCourse(List<Course> courses, Course course) {
+  final i = courses.indexWhere((c) => c.id == course.id);
+  if (i == -1) return [...courses, course];
+  return [...courses]..[i] = course;
 }
