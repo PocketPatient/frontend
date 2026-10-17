@@ -8,8 +8,11 @@ import 'package:pocket_patient/providers/auth_provider.dart';
 import 'package:pocket_patient/providers/courses_provider.dart';
 import 'package:pocket_patient/screens/home_screen.dart';
 import 'package:pocket_patient/services/auth_service.dart';
+import 'package:pocket_patient/services/notification_service.dart';
 
 class MockAuthService extends Mock implements AuthService {}
+
+class MockNotificationService extends Mock implements NotificationService {}
 
 /// Bypasses the real API call — the home screen tests care about auth state
 /// and chrome, not the course list itself.
@@ -43,6 +46,25 @@ void main() {
 
     expect(find.text('Pocket Patient'), findsOneWidget);
     expect(find.byTooltip('Sign out'), findsOneWidget);
+  });
+
+  testWidgets('landing on home asks for push permission / registers device',
+      (tester) async {
+    final notifications = MockNotificationService();
+    when(() => notifications.onSignedIn()).thenAnswer((_) async {});
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authServiceProvider.overrideWithValue(mockAuthService),
+          coursesProvider.overrideWith(_EmptyCoursesNotifier.new),
+          notificationServiceProvider.overrideWithValue(notifications),
+        ],
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    verify(() => notifications.onSignedIn()).called(1);
   });
 
   // Skipped: AuthNotifier.signOut() calls FirebaseAuth.instance.signOut()

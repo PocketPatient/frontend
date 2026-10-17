@@ -12,8 +12,12 @@ Future<void> main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  final container = ProviderContainer();
-  final notificationService = NotificationService(
+  late final NotificationService notificationService;
+  final container = ProviderContainer(overrides: [
+    // Provider is read lazily, after notificationService is assigned below.
+    notificationServiceProvider.overrideWith((ref) => notificationService),
+  ]);
+  notificationService = NotificationService(
     container: container,
     navigatorKey: container.read(navigatorKeyProvider),
   );

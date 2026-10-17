@@ -11,6 +11,7 @@ import '../providers/units_provider.dart';
 import '../utils/api_error.dart';
 import '../widgets/offline_banner.dart';
 import 'professor/class_analytics_tab.dart';
+import '../services/notification_service.dart';
 import 'student/dashboard_tab.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -34,6 +35,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ..addListener(() {
         if (!_tabController.indexIsChanging) setState(() {});
       });
+    // First sign-in on this install: ask for push permission; on later
+    // sign-ins, register this device's token for the current account.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(notificationServiceProvider)?.onSignedIn();
+    });
   }
 
   @override

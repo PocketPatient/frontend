@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/session_provider.dart';
 
@@ -20,15 +21,22 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {}
 /// Wires up FCM token registration and the three notification states
 /// (foreground banner, background tap, terminated launch) to in-app
 /// navigation.
+/// The app-wide [NotificationService], provided by main(). Null in tests and
+/// anywhere main() didn't wire it up.
+final notificationServiceProvider =
+    Provider<NotificationService?>((ref) => null);
+
 class NotificationService {
+  static const _kPushPromptedKey = 'push_permission_prompted_v1';
+
   final ProviderContainer container;
   final GlobalKey<NavigatorState> navigatorKey;
 
   NotificationService({required this.container, required this.navigatorKey});
 
   Future<void> init() async {
-    // Do not prompt at launch. The contextual request happens only after a
-    // person turns on reminders in notification settings.
+    // No permission prompt at launch: it happens once, after sign-in
+    // (onSignedIn), so the user knows what the app is first.
 
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_navigate);
@@ -55,13 +63,42 @@ class NotificationService {
     unawaited(_registerCurrentToken());
   }
 
+  /// Call when a signed-in user reaches the home screen. The first time on
+  /// this install, asks for push permission; afterwards (and after granting),
+  /// registers this device's token for the current account — the launch-time
+  /// registration runs before sign-in and is rejected without a session.
+  Future<void> onSignedIn() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!(prefs.getBool(_kPushPromptedKey) ?? false)) {
+        await prefs.setBool(_kPushPromptedKey, true);
+        await FirebaseMessaging.instance
+            .requestPermission(alert: true, badge: true, sound: true);
+      }
+      final settings =
+          await FirebaseMessaging.instance.getNotificationSettings();
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        await _registerCurrentToken();
+      }
+    } catch (_) {
+      // Never let notification setup break the home screen.
+    }
+  }
+
   Future<void> _registerCurrentToken() async {
     try {
       if (defaultTargetPlatform == TargetPlatform.iOS) {
-        final apnsToken = await FirebaseMessaging.instance
-            .getAPNSToken()
-            .timeout(const Duration(seconds: 10));
-        // No APNs token yet: onTokenRefresh fires once one is available.
+        // Right after permission is granted iOS needs a moment to deliver the
+        // APNs token; poll briefly instead of giving up on the first null.
+        String? apnsToken;
+        for (var i = 0; i < 10 && apnsToken == null; i++) {
+          apnsToken = await FirebaseMessaging.instance
+              .getAPNSToken()
+              .timeout(const Duration(seconds: 5));
+          if (apnsToken == null) await Future.delayed(const Duration(seconds: 1));
+        }
+        // Still none: onTokenRefresh fires once one is available.
         if (apnsToken == null) return;
       }
       final token = await FirebaseMessaging.instance
