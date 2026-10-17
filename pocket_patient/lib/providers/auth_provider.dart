@@ -15,6 +15,7 @@ import '../screens/email_verification_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/notification_settings_screen.dart';
+import '../screens/ai_consent_screen.dart';
 import '../screens/privacy_settings_screen.dart';
 import '../screens/professor/course_management_screen.dart';
 import '../screens/professor/create_course_screen.dart';
@@ -339,6 +340,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/privacy-settings',
           builder: (_, __) => const PrivacySettingsScreen()),
+      GoRoute(
+          path: '/ai-consent', builder: (_, __) => const AiConsentScreen()),
       GoRoute(path: '/enroll', builder: (_, __) => const EnrollScreen()),
       GoRoute(
           path: '/create-course',
