@@ -50,7 +50,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pocket Patient v2'),
+        title: const Text('Pocket Patient'),
         backgroundColor: const Color(0xFFCC0033),
         foregroundColor: Colors.white,
         actions: [

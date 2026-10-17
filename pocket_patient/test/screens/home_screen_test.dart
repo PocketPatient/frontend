@@ -41,7 +41,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Pocket Patient v2'), findsOneWidget);
+    expect(find.text('Pocket Patient'), findsOneWidget);
     expect(find.byTooltip('Sign out'), findsOneWidget);
   });
 

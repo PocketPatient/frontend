@@ -29,7 +29,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Pocket Patient v2'), findsOneWidget);
+    expect(find.text('Pocket Patient'), findsOneWidget);
     expect(find.text('Rutgers University Clinical Simulation'), findsOneWidget);
     expect(find.text('Continue with Google'), findsOneWidget);
   });

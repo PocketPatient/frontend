@@ -1,4 +1,4 @@
-# PocketPatient v2 — Privacy Policy (Draft)
+# Pocket Patient — Privacy Policy (Draft)
 
 **Status: draft for legal/compliance review — not published, not final.**
 Written for Week 16 store-prep. Grounded in the actual data flows in this
@@ -8,7 +8,7 @@ FERPA or app-store privacy requirements.
 
 ## Who this is for
 
-PocketPatient v2 is used exclusively by Rutgers University for psychiatry
+Pocket Patient is used exclusively by Rutgers University for psychiatry
 clinical simulation coursework. Sign-in is restricted to
 `@rutgers.edu` / `@scarletmail.rutgers.edu` accounts. This policy covers
 students and professors using the app as part of that coursework.

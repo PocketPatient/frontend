@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -33,16 +34,43 @@ class NotificationService {
     FirebaseMessaging.onMessageOpenedApp.listen(_navigate);
 
     // App launched from a terminated state by tapping a notification.
-    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-    if (initialMessage != null) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _navigate(initialMessage));
+    try {
+      final initialMessage = await FirebaseMessaging.instance
+          .getInitialMessage()
+          .timeout(const Duration(seconds: 3));
+      if (initialMessage != null) {
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _navigate(initialMessage));
+      }
+    } catch (_) {
+      // Never block app startup on messaging.
     }
 
     FirebaseMessaging.instance.onTokenRefresh.listen(_registerToken);
 
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token != null) await _registerToken(token);
+    // Fetch the FCM token in the background: init() runs before runApp(), and
+    // on iOS getToken() throws or stalls until an APNs token exists (e.g.
+    // before notification permission is granted), which would leave the app
+    // stuck on the launch screen.
+    unawaited(_registerCurrentToken());
+  }
+
+  Future<void> _registerCurrentToken() async {
+    try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final apnsToken = await FirebaseMessaging.instance
+            .getAPNSToken()
+            .timeout(const Duration(seconds: 10));
+        // No APNs token yet: onTokenRefresh fires once one is available.
+        if (apnsToken == null) return;
+      }
+      final token = await FirebaseMessaging.instance
+          .getToken()
+          .timeout(const Duration(seconds: 10));
+      if (token != null) await _registerToken(token);
+    } catch (_) {
+      // Best-effort — retried on token refresh or next app start.
+    }
   }
 
   /// Call from a user-initiated reminder setting, never at app launch.

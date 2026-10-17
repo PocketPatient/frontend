@@ -177,7 +177,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const SizedBox(height: 20),
               const Text(
-                'Pocket Patient v2',
+                'Pocket Patient',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,

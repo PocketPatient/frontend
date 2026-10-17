@@ -1,4 +1,4 @@
-# App Store Listing — PocketPatient v2
+# App Store Listing — Pocket Patient
 
 Week 16 Task 3 draft. Nothing here is submitted anywhere — these are copy
 drafts for review before Phase 4 store submission.

@@ -1,6 +1,6 @@
 # PocketPatient — Frontend
 
-Flutter mobile app for the Rutgers PocketPatient v2 clinical simulation platform. Medical students converse with AI-powered virtual psychiatric patients and practice diagnosis.
+Flutter mobile app for the Rutgers Pocket Patient clinical simulation platform. Medical students converse with AI-powered virtual psychiatric patients and practice diagnosis.
 
 **Stack:** Flutter 3.x · Dart · Riverpod · GoRouter · Firebase Auth · Dio
 
@@ -74,7 +74,7 @@ npm install -g firebase-tools
 dart pub global activate flutterfire_cli
 firebase login
 cd pocket_patient
-flutterfire configure --project=pocket-patient-v2 --platforms=android,ios
+flutterfire configure --project=the-pocket-patient --platforms=android,ios
 ```
 
 ### 3. Register your debug SHA-1 in Firebase (Android — one-time per machine)
@@ -303,10 +303,10 @@ flutter test
 
 | Field | Value |
 |-------|-------|
-| Project ID | `pocket-patient-v2` |
+| Project ID | `the-pocket-patient` |
 | Android package | `edu.rutgers.pocket_patient` |
 | iOS bundle ID | `edu.rutgers.pocketPatient` |
-| Console | [console.firebase.google.com](https://console.firebase.google.com) → `pocket-patient-v2` |
+| Console | [console.firebase.google.com](https://console.firebase.google.com) → `the-pocket-patient` |
 | Auth domains | `@rutgers.edu`, `@scarletmail.rutgers.edu` |
 
 ---

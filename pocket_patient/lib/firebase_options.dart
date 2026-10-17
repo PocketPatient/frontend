@@ -50,20 +50,19 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDndRvlyEHxkvPtLgQNrG6BDG6ISzZIcWA',
-    appId: '1:906860061591:android:16eef64e4996929bcf5ad2',
-    messagingSenderId: '906860061591',
-    projectId: 'pocket-patient-v2',
-    storageBucket: 'pocket-patient-v2.firebasestorage.app',
+    apiKey: 'AIzaSyAPABf6d9Gwow4iivGGJq9rPBvg6DRRmgI',
+    appId: '1:258283683818:android:56c10a129057c41f6bbc93',
+    messagingSenderId: '258283683818',
+    projectId: 'the-pocket-patient',
+    storageBucket: 'the-pocket-patient.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyA5yomWGjPLFGDQuVp_0YF8qX9zqJ-C8hY',
-    appId: '1:906860061591:ios:7d0468a970a7d9b1cf5ad2',
-    messagingSenderId: '906860061591',
-    projectId: 'pocket-patient-v2',
-    storageBucket: 'pocket-patient-v2.firebasestorage.app',
-    iosClientId: '906860061591-t5mmrgsl3hu2a16jpqpa4a1r1o5f9rio.apps.googleusercontent.com',
+    apiKey: 'AIzaSyDkWwGqcCR_QYj7wW7xpP86BUpyM74_Dok',
+    appId: '1:258283683818:ios:34190e6b8f97a1396bbc93',
+    messagingSenderId: '258283683818',
+    projectId: 'the-pocket-patient',
+    storageBucket: 'the-pocket-patient.firebasestorage.app',
+    iosClientId: '258283683818-4h306vlq6j7s6la1c29crme7hvvd1vlm.apps.googleusercontent.com',
     iosBundleId: 'edu.rutgers.pocketPatient',
   );
 }
