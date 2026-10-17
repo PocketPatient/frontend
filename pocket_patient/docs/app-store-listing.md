@@ -5,12 +5,11 @@ drafts for review before Phase 4 store submission.
 
 ## Title
 
-**"PocketPatient: Clinical Sim"** (28 characters).
+**"Pocket Patient"** (14 characters), matching the in-app name and home-screen label.
 
-Spec suggested "Pocket Patient v2 — Clinical Sim" (33 chars), which
-exceeds both the Apple App Store and Google Play's 30-character app name
-cap. Decided on this shorter form — drops "v2" (an internal version
-marker students never need to see) and the space in the product name.
+Earlier drafts used "Pocket Patient v2 — Clinical Sim" (33 chars, over the
+30-character store cap) and "PocketPatient: Clinical Sim". Final decision: the
+plain product name. "v2" was an internal version marker students never need to see.
 
 ## Short description (80 chars max)
 
@@ -20,7 +19,7 @@ marker students never need to see) and the space in the product name.
 
 ## Full description (4000 chars max)
 
-PocketPatient is a clinical simulation platform built for Rutgers medical
+Pocket Patient is a clinical simulation platform built for Rutgers medical
 students to practice diagnostic reasoning with realistic, AI-driven virtual
 patients — asynchronously, the way real clinical messaging actually works.
 
@@ -58,7 +57,7 @@ more experience. Review the full transcript of any past case any time.
 - Professors get a full class dashboard: score distributions, category
   performance heatmaps, per-student drill-downs, and CSV grade export
 
-PocketPatient is used exclusively within Rutgers' psychiatry curriculum and
+Pocket Patient is used exclusively within Rutgers' psychiatry curriculum and
 requires a @rutgers.edu or @scarletmail.rutgers.edu account to sign in.
 
 (~1,850 characters — well under the 4000 limit; room to expand with
