@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/constants.dart';
 import '../../models/chat_session.dart';
 import '../../models/course.dart';
 import '../../models/diagnosis_result.dart';
@@ -357,7 +357,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     sendError: _sendError,
                     onSend: _send,
                     onSendInstant:
-                        kDebugMode ? () => _send(instant: true) : null,
+                        kDevTools ? () => _send(instant: true) : null,
                     onRetry: _retry,
                     onRefresh: _refresh,
                     onReportMessage: _showReportDialog,
@@ -895,7 +895,7 @@ class _NoSessionStateState extends ConsumerState<_NoSessionState> {
               ),
             ),
           ),
-          if (kDebugMode) ...[
+          if (kDevTools) ...[
             const SizedBox(height: 12),
             Center(
               child: TextButton.icon(

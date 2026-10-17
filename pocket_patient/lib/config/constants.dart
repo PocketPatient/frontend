@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'package:flutter/foundation.dart' show kDebugMode, kReleaseMode;
 
 // Production backend (Cloud Run, GCP project the-pocket-patient).
 const String _kProdApiBaseUrl =
@@ -14,6 +14,13 @@ const String kApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
   defaultValue: kReleaseMode ? _kProdApiBaseUrl : _kDevApiBaseUrl,
 );
+// Developer-only controls (chat "instant reply" button, "force-create new
+// case"). On by default in debug builds, off in release builds (TestFlight /
+// App Store). Override per build: --dart-define=DEV_TOOLS=true|false.
+// Note: the production backend ignores instant replies regardless
+// (ALLOW_TEST_ACCOUNTS is off), so this only controls visibility.
+const bool kDevTools = bool.fromEnvironment('DEV_TOOLS', defaultValue: kDebugMode);
+
 const String kAppName = 'Pocket Patient';
 const String kTokenKey = 'auth_token';
 const String kRefreshTokenKey = 'refresh_token';
