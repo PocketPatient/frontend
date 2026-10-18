@@ -22,6 +22,9 @@ const String kApiBaseUrl = String.fromEnvironment(
 const bool kDevTools = bool.fromEnvironment('DEV_TOOLS', defaultValue: kDebugMode);
 
 const String kAppName = 'Pocket Patient';
+
+const String kPrivacyPolicyUrl = 'https://pocketpatient.github.io/privacy.html';
+const String kSupportUrl = 'https://pocketpatient.github.io/';
 const String kTokenKey = 'auth_token';
 const String kRefreshTokenKey = 'refresh_token';
 const String kUserIdKey = 'auth_user_id';

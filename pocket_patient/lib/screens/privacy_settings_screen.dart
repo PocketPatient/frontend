@@ -2,7 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../config/constants.dart';
 import '../models/ai_consent_status.dart';
 import '../providers/auth_provider.dart';
 import '../services/apple_auth_service.dart';
@@ -47,6 +49,16 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
       }
     } finally {
       if (mounted) setState(() => _savingConsent = false);
+    }
+  }
+
+  Future<void> _openLink(String url) async {
+    final opened =
+        await launchUrl(Uri.parse(url), mode: LaunchMode.inAppBrowserView);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open $url')),
+      );
     }
   }
 
@@ -175,12 +187,23 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
             ),
           ),
           const Divider(height: 32),
-          Text('Privacy policy',
+          Text('Privacy and help',
               style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 6),
-          const SelectableText(
-            'The published privacy policy and web account-deletion page must be linked '
-            'here before store submission. This screen describes the in-app controls.',
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Privacy policy'),
+            subtitle: const Text('What we collect, how it is used, and how to delete it'),
+            trailing: const Icon(Icons.open_in_new, size: 18),
+            onTap: () => _openLink(kPrivacyPolicyUrl),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.help_outline),
+            title: const Text('Support'),
+            subtitle: const Text('Help and contact'),
+            trailing: const Icon(Icons.open_in_new, size: 18),
+            onTap: () => _openLink(kSupportUrl),
           ),
           const Divider(height: 32),
           Text('Account deletion',
