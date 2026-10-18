@@ -164,15 +164,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             children: [
               // Logo & title
               Center(
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  padding: const EdgeInsets.all(9),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFCC0033),
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                  ),
-                  child: Image.asset('assets/icon/icon_foreground.png'),
+                child: Image.asset(
+                  'assets/icon/logo.png',
+                  height: 96,
+                  semanticLabel: 'Pocket Patient logo',
                 ),
               ),
               const SizedBox(height: 20),
