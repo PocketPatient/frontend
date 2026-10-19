@@ -80,17 +80,37 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
 
   @override
   Future<AppUser?> build() async {
-    final hasToken = await ref.read(authServiceProvider).hasToken();
-    if (!hasToken) return null;
-    try {
-      final user = await ref.read(apiServiceProvider).getMe();
-      unawaited(_registerFcmToken());
-      return user;
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 401) {
-        await ref.read(authServiceProvider).clearAll();
+    final authService = ref.read(authServiceProvider);
+    // A cold start can briefly have no network, or run while iOS prewarms the
+    // app in the background. Retry a few times, and never discard stored
+    // credentials here: only the refresh interceptor ends a session, when the
+    // server rejects it. If this still gives up, App re-checks on resume.
+    for (var attempt = 0;; attempt++) {
+      try {
+        if (!await authService.hasToken()) return null;
+        final user = await ref.read(apiServiceProvider).getMe();
+        unawaited(_registerFcmToken());
+        return user;
+      } on DioException catch (e) {
+        // 401 here means the refresh token was rejected (and cleared).
+        if (e.response?.statusCode == 401) return null;
+      } catch (_) {
+        // Keychain not readable yet (device not unlocked since boot).
       }
-      return null;
+      if (attempt >= 2) return null;
+      await Future<void>.delayed(Duration(seconds: 1 << attempt));
+    }
+  }
+
+  /// Called when the app returns to the foreground: if a stored session
+  /// exists but startup couldn't restore it, try again.
+  Future<void> restoreSessionIfNeeded() async {
+    if (state.isLoading || state.valueOrNull != null) return;
+    if (ref.read(emailVerificationPendingProvider)) return;
+    try {
+      if (await ref.read(authServiceProvider).hasToken()) ref.invalidateSelf();
+    } catch (_) {
+      // Keychain still unavailable; the next resume tries again.
     }
   }
 

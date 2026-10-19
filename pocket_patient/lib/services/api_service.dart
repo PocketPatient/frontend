@@ -22,6 +22,7 @@ class ApiService {
   ApiService({
     required AuthService authService,
     Dio? dio,
+    Dio? refreshDio,
     void Function()? onUnauthenticated,
   }) : _dio = dio ??
             Dio(BaseOptions(
@@ -29,8 +30,18 @@ class ApiService {
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 10),
             )) {
-    _dio.interceptors
-        .add(_AuthInterceptor(authService, _dio, onUnauthenticated));
+    _dio.interceptors.add(_AuthInterceptor(
+      authService,
+      _dio,
+      onUnauthenticated,
+      // Separate client with no interceptors, so a refresh can't recurse.
+      refreshDio ??
+          Dio(BaseOptions(
+            baseUrl: kApiBaseUrl,
+            connectTimeout: const Duration(seconds: 10),
+            receiveTimeout: const Duration(seconds: 10),
+          )),
+    ));
   }
 
   Future<AuthResponse> login(String firebaseIdToken) async {
@@ -349,9 +360,11 @@ class _AuthInterceptor extends Interceptor {
   final AuthService _authService;
   final Dio _dio;
   final void Function()? _onUnauthenticated;
+  final Dio _refreshDio;
   Future<AuthResponse>? _refreshFuture;
 
-  _AuthInterceptor(this._authService, this._dio, this._onUnauthenticated);
+  _AuthInterceptor(
+      this._authService, this._dio, this._onUnauthenticated, this._refreshDio);
 
   @override
   void onRequest(
@@ -366,20 +379,33 @@ class _AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
+      final AuthResponse auth;
       try {
-        final auth = await _refreshAccessToken();
+        auth = await _refreshAccessToken();
+      } on _SessionRejected {
+        // The session is really over (refresh token expired/revoked/missing,
+        // or mixed accounts) — _doRefresh cleared stored tokens; also reset
+        // in-memory auth state so the router redirects to login right away.
+        _onUnauthenticated?.call();
+        return handler.next(err);
+      } catch (e) {
+        // Transient failure (offline, timeout, app suspended mid-request,
+        // server error): keep the session and just fail this request — as a
+        // connection error, not a 401, so callers don't treat it as signed out.
+        return handler.next(DioException(
+          requestOptions: err.requestOptions,
+          error: e,
+          type: DioExceptionType.connectionError,
+          message: 'Token refresh failed',
+        ));
+      }
+      try {
         final opts = err.requestOptions;
         opts.headers['Authorization'] = 'Bearer ${auth.accessToken}';
         final retryResp = await _dio.fetch(opts);
         return handler.resolve(retryResp);
-      } catch (_) {
-        // Refresh itself failed (expired/revoked/mixed-account refresh
-        // token) — _doRefresh already cleared stored tokens; also reset
-        // in-memory auth state so the router redirects to login right
-        // away instead of leaving the user staring at a dead screen until
-        // the next cold start happens to notice.
-        _onUnauthenticated?.call();
-        return handler.next(err);
+      } on DioException catch (retryErr) {
+        return handler.next(retryErr);
       }
     }
     handler.next(err);
@@ -399,39 +425,51 @@ class _AuthInterceptor extends Interceptor {
         _doRefresh().whenComplete(() => _refreshFuture = null);
   }
 
+  /// Only a definitive rejection ends the session ([_SessionRejected]):
+  /// no stored refresh token, the server answering 401/403, or mixed
+  /// accounts. Anything else (no network, timeout, 5xx) is rethrown as-is
+  /// and the stored credentials are kept, so a flaky moment at app start
+  /// doesn't sign the user out.
   Future<AuthResponse> _doRefresh() async {
     final refreshToken = await _authService.readRefreshToken();
     if (refreshToken == null) {
-      throw StateError('No refresh token stored');
+      await _authService.clearAll();
+      throw const _SessionRejected('No refresh token stored');
     }
+    final Response resp;
     try {
-      // Use a fresh Dio with no interceptors to avoid infinite loops.
-      final refreshDio = Dio(BaseOptions(baseUrl: kApiBaseUrl));
-      final resp = await refreshDio.post(
+      resp = await _refreshDio.post(
         '/auth/refresh',
         data: {'refresh_token': refreshToken},
       );
-      final auth = AuthResponse.fromJson(resp.data as Map<String, dynamic>);
-
-      // Cross-account guard: if the refreshed token belongs to a different
-      // user than the one who originally logged in, the credentials are
-      // mixed (e.g. access token for user A, refresh token for user B).
-      // Clear everything and let the router redirect to the login screen.
-      final storedUserId = await _authService.readUserId();
-      final refreshedUserId = _subFromJwt(auth.accessToken);
-      if (storedUserId != null &&
-          refreshedUserId != null &&
-          storedUserId != refreshedUserId) {
-        throw StateError('Refreshed token belongs to a different user');
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 401 || status == 403) {
+        await _authService.clearAll();
+        throw _SessionRejected('Refresh rejected ($status)');
       }
-
-      await _authService.writeToken(auth.accessToken);
-      await _authService.writeRefreshToken(auth.refreshToken);
-      return auth;
-    } catch (_) {
-      await _authService.clearAll();
       rethrow;
     }
+    final auth = AuthResponse.fromJson(resp.data as Map<String, dynamic>);
+
+    // Cross-account guard: if the refreshed token belongs to a different
+    // user than the one who originally logged in, the credentials are
+    // mixed (e.g. access token for user A, refresh token for user B).
+    // Clear everything and let the router redirect to the login screen.
+    final storedUserId = await _authService.readUserId();
+    final refreshedUserId = _subFromJwt(auth.accessToken);
+    if (storedUserId != null &&
+        refreshedUserId != null &&
+        storedUserId != refreshedUserId) {
+      await _authService.clearAll();
+      throw const _SessionRejected('Refreshed token belongs to a different user');
+    }
+
+    // The server already rotated the refresh token: persist the new pair
+    // before anything else can fail.
+    await _authService.writeRefreshToken(auth.refreshToken);
+    await _authService.writeToken(auth.accessToken);
+    return auth;
   }
 
   /// Decodes the JWT payload (without verifying the signature) and returns
@@ -450,4 +488,12 @@ class _AuthInterceptor extends Interceptor {
       return null;
     }
   }
+}
+
+/// The refresh token was rejected or is missing: the user must sign in again.
+class _SessionRejected implements Exception {
+  final String reason;
+  const _SessionRejected(this.reason);
+  @override
+  String toString() => 'SessionRejected: $reason';
 }

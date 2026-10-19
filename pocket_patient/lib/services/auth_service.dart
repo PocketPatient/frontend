@@ -8,6 +8,12 @@ class AuthService {
       : _storage = storage ??
             const FlutterSecureStorage(
               aOptions: AndroidOptions(encryptedSharedPreferences: true),
+              // Readable after the first unlock since boot, not only while
+              // unlocked: iOS launches/prewarms the app in the background
+              // (e.g. for a push), and a failed keychain read there must not
+              // look like "signed out".
+              iOptions: IOSOptions(
+                  accessibility: KeychainAccessibility.first_unlock),
             );
 
   Future<bool> hasToken() async {
