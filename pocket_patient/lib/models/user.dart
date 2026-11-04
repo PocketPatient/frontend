@@ -45,6 +45,19 @@ class AppUser {
         quietHoursEnd: _parseTime(json['quiet_hours_end'] as String?),
       );
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'email': email,
+        'role': role,
+        'display_name': displayName,
+        'is_verified': isVerified,
+        'push_enabled': pushEnabled,
+        'quiet_hours_start':
+            quietHoursStart == null ? null : _formatTime(quietHoursStart!),
+        'quiet_hours_end':
+            quietHoursEnd == null ? null : _formatTime(quietHoursEnd!),
+      };
+
   AppUser copyWith({
     String? role,
     String? displayName,

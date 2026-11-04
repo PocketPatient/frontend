@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/constants.dart';
+import '../models/user.dart';
 
 class AuthService {
   final FlutterSecureStorage _storage;
@@ -40,9 +43,25 @@ class AuthService {
   Future<void> writeUserId(String userId) =>
       _storage.write(key: kUserIdKey, value: userId);
 
+  /// Last known profile of the signed-in user, so a cold start can open
+  /// straight to home instead of waiting on the network.
+  Future<AppUser?> readCachedUser() async {
+    final raw = await _storage.read(key: kCachedUserKey);
+    if (raw == null) return null;
+    try {
+      return AppUser.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null; // unreadable (e.g. older format): fall back to the network
+    }
+  }
+
+  Future<void> writeCachedUser(AppUser user) =>
+      _storage.write(key: kCachedUserKey, value: jsonEncode(user.toJson()));
+
   Future<void> clearAll() async {
     await _storage.delete(key: kTokenKey);
     await _storage.delete(key: kRefreshTokenKey);
     await _storage.delete(key: kUserIdKey);
+    await _storage.delete(key: kCachedUserKey);
   }
 }

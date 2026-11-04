@@ -80,6 +80,54 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
 
   @override
   Future<AppUser?> build() async {
+    // Keep a copy of the signed-in user so the next cold start can open
+    // straight to home (signOut/forceSignedOut clear it with the tokens).
+    listenSelf((_, next) {
+      final user = next.valueOrNull;
+      if (user != null) unawaited(_cacheUser(user));
+    });
+
+    final cached = await _readCachedSession();
+    if (cached != null) {
+      // Show home immediately; confirm the session and pick up any profile
+      // changes in the background. A dead session is ended by the refresh
+      // interceptor (forceSignedOut), which sends the user to /login.
+      unawaited(_refreshUser(cached.id));
+      return cached;
+    }
+    return _restoreFromServer();
+  }
+
+  Future<void> _cacheUser(AppUser user) async {
+    try {
+      await ref.read(authServiceProvider).writeCachedUser(user);
+    } catch (_) {
+      // Best-effort: without a cache the next launch just waits on getMe.
+    }
+  }
+
+  Future<AppUser?> _readCachedSession() async {
+    try {
+      final authService = ref.read(authServiceProvider);
+      if (!await authService.hasToken()) return null;
+      return await authService.readCachedUser();
+    } catch (_) {
+      return null; // keychain not readable yet: take the network path
+    }
+  }
+
+  Future<void> _refreshUser(String userId) async {
+    try {
+      final user = await ref.read(apiServiceProvider).getMe();
+      // Skip if the user signed out or switched accounts meanwhile.
+      if (state.valueOrNull?.id == userId) state = AsyncData(user);
+      unawaited(_registerFcmToken());
+    } catch (_) {
+      // Offline or slow: keep the cached user until the next launch/resume.
+    }
+  }
+
+  Future<AppUser?> _restoreFromServer() async {
     final authService = ref.read(authServiceProvider);
     // A cold start can briefly have no network, or run while iOS prewarms the
     // app in the background. Retry a few times, and never discard stored

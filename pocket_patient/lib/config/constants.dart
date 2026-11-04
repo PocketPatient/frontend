@@ -28,3 +28,4 @@ const String kSupportUrl = 'https://pocketpatient.github.io/';
 const String kTokenKey = 'auth_token';
 const String kRefreshTokenKey = 'refresh_token';
 const String kUserIdKey = 'auth_user_id';
+const String kCachedUserKey = 'auth_cached_user';
