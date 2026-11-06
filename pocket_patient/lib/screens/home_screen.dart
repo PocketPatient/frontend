@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/chat_session.dart';
 import '../models/course.dart';
 import '../providers/auth_provider.dart';
@@ -10,9 +11,13 @@ import '../providers/session_provider.dart';
 import '../providers/units_provider.dart';
 import '../utils/api_error.dart';
 import '../widgets/offline_banner.dart';
+import 'privacy_settings_screen.dart';
 import 'professor/class_analytics_tab.dart';
 import '../services/notification_service.dart';
 import 'student/dashboard_tab.dart';
+
+/// Set once a student has been shown the AI-consent screen on this install.
+const kAiConsentPromptedKey = 'ai_consent_prompted_v1';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -35,11 +40,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ..addListener(() {
         if (!_tabController.indexIsChanging) setState(() {});
       });
-    // First sign-in on this install: ask for push permission; on later
-    // sign-ins, register this device's token for the current account.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(notificationServiceProvider)?.onSignedIn();
+    // Students without AI consent get no cases, so ask once per install,
+    // here rather than at role selection (where the redirect to /home could
+    // race the push and drop the screen). Then, first sign-in on this
+    // install: ask for push permission; on later sign-ins, register this
+    // device's token for the current account.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _promptAiConsentOnce();
+      if (mounted) ref.read(notificationServiceProvider)?.onSignedIn();
     });
+  }
+
+  Future<void> _promptAiConsentOnce() async {
+    try {
+      final user = await ref.read(authNotifierProvider.future);
+      if (user?.role != 'student') return;
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(kAiConsentPromptedKey) ?? false) return;
+      final consent = await ref.read(aiConsentProvider.future);
+      if (consent.active || !mounted) return;
+      await prefs.setBool(kAiConsentPromptedKey, true);
+      if (mounted) await context.push('/ai-consent');
+    } catch (_) {
+      // Offline or storage error: the home banner still offers consent.
+    }
   }
 
   @override
@@ -53,6 +77,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final user = ref.watch(authNotifierProvider).valueOrNull;
     final coursesAsync = ref.watch(coursesProvider);
     final isProfessor = user?.role == 'professor';
+    final aiConsentOff = user?.role == 'student' &&
+        ref.watch(aiConsentProvider).valueOrNull?.active == false;
 
     return Scaffold(
       appBar: AppBar(
@@ -117,6 +143,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
           ),
+        if (aiConsentOff) const _AiConsentOffBanner(),
         Expanded(
           child: TabBarView(
             controller: _tabController,
@@ -182,6 +209,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   icon: const Icon(Icons.add),
                   label: const Text('Join course'),
                 )),
+    );
+  }
+}
+
+/// Without AI consent no patient will reach out, so say so on home instead
+/// of leaving the student waiting on an empty case list.
+class _AiConsentOffBanner extends StatelessWidget {
+  const _AiConsentOffBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: const Key('ai-consent-off-banner'),
+      color: Colors.amber[700],
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+        child: Row(
+          children: [
+            const Icon(Icons.smart_toy_outlined, size: 16, color: Colors.white),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'AI patients are off, so you won\'t receive cases.',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              onPressed: () => context.push('/ai-consent'),
+              child: const Text('Turn on'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -87,13 +87,9 @@ class _RoleCard extends ConsumerWidget {
   });
 
   Future<void> _select(WidgetRef ref) async {
-    // Read the router first: once the role is saved, the redirect replaces this
-    // screen with /home and this widget's context is gone.
-    final router = ref.read(goRouterProvider);
+    // Saving the role redirects to /home, which asks new students for AI
+    // consent.
     await ref.read(authNotifierProvider.notifier).setRole(role);
-    final saved = ref.read(authNotifierProvider).valueOrNull?.role == role;
-    // New students are asked for AI consent up front (shown over /home).
-    if (saved && role == 'student') router.push('/ai-consent');
   }
 
   @override
