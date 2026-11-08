@@ -1,3 +1,4 @@
+import '../utils/api_date.dart';
 /// Mirrors backend's StudentSummary (GET /analytics/student/summary).
 class ScoreByCase {
   final String sessionId;
@@ -20,7 +21,7 @@ class ScoreByCase {
         category: json['category'] as String,
         score: (json['score'] as num?)?.toDouble(),
         completedAt: json['completed_at'] != null
-            ? DateTime.parse(json['completed_at'] as String)
+            ? parseApiDate(json['completed_at'] as String)
             : null,
       );
 }

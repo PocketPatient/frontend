@@ -1,3 +1,4 @@
+import '../utils/api_date.dart';
 /// A row in a paginated session list (GET /sessions?course_id&student_id).
 /// Used by the professor transcript browser — despite the name, covers
 /// active sessions too (backend only filters by status when asked to).
@@ -31,9 +32,9 @@ class CompletedSessionItem {
         category: json['category'] as String,
         score: (json['score'] as num?)?.toDouble(),
         turnCount: json['turn_count'] as int,
-        startedAt: DateTime.parse(json['started_at'] as String),
+        startedAt: parseApiDate(json['started_at'] as String),
         completedAt: json['completed_at'] != null
-            ? DateTime.parse(json['completed_at'] as String)
+            ? parseApiDate(json['completed_at'] as String)
             : null,
         avgResponseLatencySec:
             (json['avg_response_latency_sec'] as num?)?.toDouble(),

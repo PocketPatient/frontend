@@ -1,3 +1,5 @@
+import '../utils/api_date.dart';
+
 class AiConsentStatus {
   final bool active;
   final String requiredVersion;
@@ -16,8 +18,6 @@ class AiConsentStatus {
         active: json['active'] as bool? ?? false,
         requiredVersion: json['required_version'] as String? ?? '',
         acceptedVersion: json['accepted_version'] as String?,
-        acceptedAt: json['accepted_at'] == null
-            ? null
-            : DateTime.tryParse(json['accepted_at'] as String),
+        acceptedAt: tryParseApiDate(json['accepted_at'] as String?),
       );
 }

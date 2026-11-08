@@ -1,3 +1,5 @@
+import '../utils/api_date.dart';
+
 class ScoreData {
   final String primaryDx;
   final List<String> differentials;
@@ -33,7 +35,7 @@ class ScoreData {
         totalScore: (json['total_score'] as num?)?.toDouble(),
         feedbackText: json['feedback_text'] as String?,
         gradedAt: json['graded_at'] != null
-            ? DateTime.parse(json['graded_at'] as String)
+            ? parseApiDate(json['graded_at'] as String)
             : null,
       );
 }

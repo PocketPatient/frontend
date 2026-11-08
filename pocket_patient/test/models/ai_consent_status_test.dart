@@ -14,7 +14,10 @@ void main() {
       expect(status.active, isTrue);
       expect(status.requiredVersion, '2026-10-v1');
       expect(status.acceptedVersion, '2026-10-v1');
-      expect(status.acceptedAt, DateTime.parse('2026-10-06T16:00:00Z'));
+      expect(
+          status.acceptedAt!
+              .isAtSameMomentAs(DateTime.parse('2026-10-06T16:00:00Z')),
+          isTrue);
     });
 
     test('defaults safely to no consent for incomplete server data', () {

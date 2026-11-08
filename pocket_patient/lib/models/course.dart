@@ -1,3 +1,5 @@
+import '../utils/api_date.dart';
+
 class Course {
   final String id;
   final String title;
@@ -36,6 +38,6 @@ class Course {
         msgWindowStart: json['msg_window_start'] as String?,
         msgWindowEnd: json['msg_window_end'] as String?,
         msgTimezone: json['msg_timezone'] as String? ?? 'America/New_York',
-        createdAt: DateTime.parse(json['created_at'] as String),
+        createdAt: parseApiDate(json['created_at'] as String),
       );
 }

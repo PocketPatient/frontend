@@ -1,3 +1,5 @@
+import '../utils/api_date.dart';
+
 class EnrolledStudent {
   final String userId;
   final String email;
@@ -16,7 +18,7 @@ class EnrolledStudent {
         userId: json['user_id'] as String,
         email: json['email'] as String,
         displayName: json['display_name'] as String?,
-        enrolledAt: DateTime.parse(json['enrolled_at'] as String),
+        enrolledAt: parseApiDate(json['enrolled_at'] as String),
       );
 
   String get displayLabel => displayName?.isNotEmpty == true ? displayName! : email;

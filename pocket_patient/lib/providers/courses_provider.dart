@@ -44,7 +44,7 @@ class CoursesNotifier extends AsyncNotifier<List<Course>> {
               'msg_window_start': c.msgWindowStart,
               'msg_window_end': c.msgWindowEnd,
               'msg_timezone': c.msgTimezone,
-              'created_at': c.createdAt.toIso8601String(),
+              'created_at': c.createdAt.toUtc().toIso8601String(),
             })
         .toList();
     await prefs.setString(_kCacheKey, jsonEncode(list));

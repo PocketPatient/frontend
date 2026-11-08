@@ -1,3 +1,5 @@
+import '../utils/api_date.dart';
+
 class DiseaseSummary {
   final String id;
   final String name;
@@ -55,7 +57,7 @@ class Unit {
                 .toList()
             : const [],
         releaseDate: json['release_date'] != null
-            ? DateTime.parse(json['release_date'] as String)
+            ? parseApiDate(json['release_date'] as String)
             : null,
       );
 }

@@ -1,3 +1,4 @@
+import '../utils/api_date.dart';
 import 'diagnosis_result.dart';
 
 enum MessageRole { student, patient, system }
@@ -35,7 +36,7 @@ class ChatMessage {
       id: json['id'] as String,
       role: role,
       content: json['content'] as String,
-      sentAt: DateTime.parse(json['sent_at'] as String),
+      sentAt: parseApiDate(json['sent_at'] as String),
       responseLatencySec: (json['response_latency_sec'] as num?)?.toDouble(),
     );
   }
@@ -130,7 +131,7 @@ class ChatSession {
         courseId: json['course_id'] as String,
         status: (json['status'] as String?) ?? 'active',
         turnCount: json['turn_count'] as int? ?? 0,
-        startedAt: DateTime.parse(json['started_at'] as String),
+        startedAt: parseApiDate(json['started_at'] as String),
         messages: json['messages'] != null
             ? (json['messages'] as List)
                 .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
